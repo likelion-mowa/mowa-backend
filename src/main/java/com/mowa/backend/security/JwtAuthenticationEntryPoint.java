@@ -1,6 +1,5 @@
 package com.mowa.backend.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mowa.backend.common.exception.ErrorCode;
 import com.mowa.backend.common.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
