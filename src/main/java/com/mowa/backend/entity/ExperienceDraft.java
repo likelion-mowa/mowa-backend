@@ -69,6 +69,44 @@ public class ExperienceDraft extends BaseEntity {
     protected ExperienceDraft() {
     }
 
+    public static ExperienceDraft create(
+            User user,
+            WalkCandidate candidate,
+            String photoUrl,
+            Companion companion,
+            Set<Emotion> emotions,
+            Situation situation
+    ) {
+        ExperienceDraft draft = new ExperienceDraft();
+        draft.user = user;
+        draft.candidate = candidate;
+        draft.photoUrl = photoUrl;
+        draft.companion = companion;
+        draft.situation = situation;
+        draft.aiGenerationStatus = AiGenerationStatus.PENDING;
+        draft.replaceEmotions(emotions);
+        return draft;
+    }
+
+    public void updatePhotoUrl(String photoUrl) {
+        this.photoUrl = photoUrl;
+    }
+
+    public void updateCompanion(Companion companion) {
+        this.companion = companion;
+    }
+
+    public void updateSituation(Situation situation) {
+        this.situation = situation;
+    }
+
+    public void replaceEmotions(Set<Emotion> emotions) {
+        this.emotions.clear();
+        if (emotions != null) {
+            this.emotions.addAll(emotions);
+        }
+    }
+
     public UUID getId() {
         return id;
     }
