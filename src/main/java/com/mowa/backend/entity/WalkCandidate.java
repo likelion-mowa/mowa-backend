@@ -47,6 +47,31 @@ public class WalkCandidate extends BaseEntity {
     protected WalkCandidate() {
     }
 
+    public static WalkCandidate create(User user, OffsetDateTime detectedStartAt, String locationSummary) {
+        WalkCandidate candidate = new WalkCandidate();
+        candidate.user = user;
+        candidate.detectedStartAt = detectedStartAt;
+        candidate.locationSummary = locationSummary;
+        candidate.status = CandidateStatus.DETECTED;
+        return candidate;
+    }
+
+    public void updateDetectedEndAt(OffsetDateTime detectedEndAt) {
+        this.detectedEndAt = detectedEndAt;
+    }
+
+    public void updateDurationSeconds(Integer durationSeconds) {
+        this.durationSeconds = durationSeconds;
+    }
+
+    public void updateLocationSummary(String locationSummary) {
+        this.locationSummary = locationSummary;
+    }
+
+    public void updateStatus(CandidateStatus status) {
+        this.status = status;
+    }
+
     public UUID getId() {
         return id;
     }
