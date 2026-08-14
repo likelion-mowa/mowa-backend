@@ -4,6 +4,7 @@ import com.mowa.backend.common.exception.BusinessException;
 import com.mowa.backend.common.exception.ErrorCode;
 import com.mowa.backend.dto.walkexperience.CreateWalkExperienceRequest;
 import com.mowa.backend.dto.walkexperience.CreateWalkExperienceResponse;
+import com.mowa.backend.dto.walkexperience.WalkExperienceListResponse;
 import com.mowa.backend.entity.AiGenerationStatus;
 import com.mowa.backend.entity.Emotion;
 import com.mowa.backend.entity.ExperienceDraft;
@@ -16,11 +17,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class WalkExperienceService {
+
+    private static final ZoneId SERVICE_ZONE_ID = ZoneId.of("Asia/Seoul");
 
     private final ExperienceDraftRepository experienceDraftRepository;
     private final WalkExperienceRepository walkExperienceRepository;
@@ -61,6 +67,51 @@ public class WalkExperienceService {
         );
 
         return CreateWalkExperienceResponse.from(walkExperienceRepository.saveAndFlush(experience));
+    }
+
+    @Transactional(readOnly = true)
+    public List<WalkExperienceListResponse> getAll(
+            UUID userId,
+            LocalDate from,
+            LocalDate to,
+            String tag
+    ) {
+        validateQueryParameters(from, to, tag);
+
+        List<WalkExperience> experiences;
+        if (tag != null) {
+            experiences = walkExperienceRepository.findAllActiveByUserIdAndTag(userId, tag);
+        } else if (from != null) {
+            OffsetDateTime startInclusive = from.atStartOfDay(SERVICE_ZONE_ID).toOffsetDateTime();
+            OffsetDateTime endExclusive = to.plusDays(1).atStartOfDay(SERVICE_ZONE_ID).toOffsetDateTime();
+            experiences = walkExperienceRepository.findAllActiveByUserIdAndStartedAtRange(
+                    userId,
+                    startInclusive,
+                    endExclusive
+            );
+        } else {
+            experiences = walkExperienceRepository.findAllActiveByUserId(userId);
+        }
+
+        return experiences.stream()
+                .map(WalkExperienceListResponse::from)
+                .toList();
+    }
+
+    private void validateQueryParameters(LocalDate from, LocalDate to, String tag) {
+        boolean hasFrom = from != null;
+        boolean hasTo = to != null;
+        boolean hasTag = tag != null;
+
+        if (hasTag && (hasFrom || hasTo)) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Date range and tag cannot be used together.");
+        }
+        if (hasFrom != hasTo) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "from and to must be provided together.");
+        }
+        if (hasFrom && from.isAfter(to)) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "from must not be after to.");
+        }
     }
 
     private void validateDraft(ExperienceDraft draft, UUID userId) {
