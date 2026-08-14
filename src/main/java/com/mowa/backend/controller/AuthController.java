@@ -4,6 +4,7 @@ import com.mowa.backend.common.response.ApiResponse;
 import com.mowa.backend.dto.auth.LoginRequest;
 import com.mowa.backend.dto.auth.LoginResponse;
 import com.mowa.backend.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,6 +23,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @Operation(security = {})
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(ApiResponse.success(authService.login(request)));
     }
