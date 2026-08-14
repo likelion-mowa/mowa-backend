@@ -1,6 +1,6 @@
-# ⚙️ [서비스명] Backend
+# ⚙️ 모와(MOWA) Backend Repository
 
-`[서비스명]`의 REST API, 데이터 관리 및 AI 산책 일기 생성을 담당하는 Backend Repository입니다.
+`모와`의 REST API, 데이터 관리 및 AI 산책 일기 생성을 담당하는 Backend Repository입니다.
 
 ## 📌 주요 역할
 
