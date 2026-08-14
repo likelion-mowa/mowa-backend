@@ -107,6 +107,20 @@ public class ExperienceDraft extends BaseEntity {
         }
     }
 
+    public void startAiGeneration() {
+        this.aiGenerationStatus = AiGenerationStatus.GENERATING;
+    }
+
+    public void completeAiGeneration(String aiTitle, String aiBody) {
+        this.aiTitle = aiTitle;
+        this.aiBody = aiBody;
+        this.aiGenerationStatus = AiGenerationStatus.SUCCESS;
+    }
+
+    public void failAiGeneration() {
+        this.aiGenerationStatus = AiGenerationStatus.FAILED;
+    }
+
     public UUID getId() {
         return id;
     }

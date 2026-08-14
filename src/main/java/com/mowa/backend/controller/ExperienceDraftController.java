@@ -2,6 +2,7 @@ package com.mowa.backend.controller;
 
 import com.mowa.backend.common.response.ApiResponse;
 import com.mowa.backend.dto.experiencedraft.CreateExperienceDraftRequest;
+import com.mowa.backend.dto.experiencedraft.ExperienceDraftAiGenerationResponse;
 import com.mowa.backend.dto.experiencedraft.ExperienceDraftResponse;
 import com.mowa.backend.dto.experiencedraft.UpdateExperienceDraftRequest;
 import com.mowa.backend.security.AuthenticatedUser;
@@ -46,6 +47,16 @@ public class ExperienceDraftController {
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 experienceDraftService.update(authenticatedUser.userId(), draftId, request)
+        ));
+    }
+
+    @PostMapping("/experience-drafts/{draftId}/ai-generation")
+    public ResponseEntity<ApiResponse<ExperienceDraftAiGenerationResponse>> generateAi(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @PathVariable UUID draftId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                experienceDraftService.generateAi(authenticatedUser.userId(), draftId)
         ));
     }
 }

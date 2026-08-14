@@ -3,6 +3,7 @@ package com.mowa.backend.service;
 import com.mowa.backend.common.exception.BusinessException;
 import com.mowa.backend.common.exception.ErrorCode;
 import com.mowa.backend.dto.experiencedraft.CreateExperienceDraftRequest;
+import com.mowa.backend.dto.experiencedraft.ExperienceDraftAiGenerationResponse;
 import com.mowa.backend.dto.experiencedraft.ExperienceDraftResponse;
 import com.mowa.backend.dto.experiencedraft.UpdateExperienceDraftRequest;
 import com.mowa.backend.entity.AiGenerationStatus;
@@ -17,21 +18,31 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ExperienceDraftService {
 
+    private static final Logger log = LoggerFactory.getLogger(ExperienceDraftService.class);
+
     private final ExperienceDraftRepository experienceDraftRepository;
     private final WalkCandidateRepository walkCandidateRepository;
+    private final ExperienceDraftAiGenerationTransactionService aiGenerationTransactionService;
+    private final ExperienceDraftAiClient experienceDraftAiClient;
 
     public ExperienceDraftService(
             ExperienceDraftRepository experienceDraftRepository,
-            WalkCandidateRepository walkCandidateRepository
+            WalkCandidateRepository walkCandidateRepository,
+            ExperienceDraftAiGenerationTransactionService aiGenerationTransactionService,
+            ExperienceDraftAiClient experienceDraftAiClient
     ) {
         this.experienceDraftRepository = experienceDraftRepository;
         this.walkCandidateRepository = walkCandidateRepository;
+        this.aiGenerationTransactionService = aiGenerationTransactionService;
+        this.experienceDraftAiClient = experienceDraftAiClient;
     }
 
     @Transactional
@@ -84,6 +95,21 @@ public class ExperienceDraftService {
         }
 
         return ExperienceDraftResponse.from(draft);
+    }
+
+    public ExperienceDraftAiGenerationResponse generateAi(UUID userId, UUID draftId) {
+        ExperienceDraftAiGenerationInput input = aiGenerationTransactionService.startGeneration(userId, draftId);
+
+        ExperienceDraftAiGenerationResult result;
+        try {
+            result = experienceDraftAiClient.generate(input);
+        } catch (RuntimeException exception) {
+            aiGenerationTransactionService.failGeneration(userId, draftId);
+            log.warn("AI generation failed for draftId={}", draftId, exception);
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "AI generation failed.");
+        }
+
+        return aiGenerationTransactionService.completeGeneration(userId, draftId, result);
     }
 
     private WalkCandidate findCandidate(UUID userId, UUID candidateId) {
