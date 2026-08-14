@@ -319,6 +319,7 @@ AI 생성 결과를 사용자가 확인·수정한 뒤 최종 산책 경험을 S
 | `photo_url` | 대표 사진 |
 | `title` | 산책 일기 제목 |
 | `started_at` | 날짜 표시, 캘린더 조회 및 정렬 |
+| `duration_seconds` | 산책 지속 시간 표시 및 누적 산책 시간 계산 |
 | `location_summary` | 주요 장소 표시 |
 | `companion` | 동반자 표시 |
 | `situation` | 상황 표시 |

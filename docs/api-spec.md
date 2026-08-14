@@ -701,6 +701,7 @@ experienceId
 photoUrl
 title
 startedAt
+durationSeconds
 locationSummary
 companion
 emotions[]
