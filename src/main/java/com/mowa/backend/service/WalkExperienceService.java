@@ -142,6 +142,13 @@ public class WalkExperienceService {
         return WalkExperienceDetailResponse.from(experience);
     }
 
+    @Transactional
+    public void delete(UUID userId, UUID experienceId) {
+        WalkExperience experience = walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        experience.softDelete(OffsetDateTime.now());
+    }
+
     private void validateQueryParameters(LocalDate from, LocalDate to, String tag) {
         boolean hasFrom = from != null;
         boolean hasTo = to != null;

@@ -159,6 +159,10 @@ public class WalkExperience extends BaseEntity {
         this.tags.addAll(tags);
     }
 
+    public void softDelete(OffsetDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
     public UUID getId() {
         return id;
     }
