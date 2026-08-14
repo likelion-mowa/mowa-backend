@@ -6,6 +6,7 @@ import com.mowa.backend.dto.walkexperience.CreateWalkExperienceRequest;
 import com.mowa.backend.dto.walkexperience.CreateWalkExperienceResponse;
 import com.mowa.backend.dto.walkexperience.WalkExperienceListResponse;
 import com.mowa.backend.dto.walkexperience.WalkExperienceDetailResponse;
+import com.mowa.backend.dto.walkexperience.UpdateWalkExperienceRequest;
 import com.mowa.backend.entity.AiGenerationStatus;
 import com.mowa.backend.entity.Emotion;
 import com.mowa.backend.entity.ExperienceDraft;
@@ -106,6 +107,41 @@ public class WalkExperienceService {
         return WalkExperienceDetailResponse.from(experience);
     }
 
+    @Transactional
+    public WalkExperienceDetailResponse update(
+            UUID userId,
+            UUID experienceId,
+            UpdateWalkExperienceRequest request
+    ) {
+        WalkExperience experience = walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+
+        if (request.hasTitle()) {
+            validateTitle(request.getTitle());
+            experience.updateTitle(request.getTitle());
+        }
+        if (request.hasBody()) {
+            experience.updateBody(request.getBody());
+        }
+        if (request.hasPhotoUrl()) {
+            experience.updatePhotoUrl(request.getPhotoUrl());
+        }
+        if (request.hasCompanion()) {
+            experience.updateCompanion(request.getCompanion());
+        }
+        if (request.hasEmotions()) {
+            experience.replaceEmotions(toEmotionSetForUpdate(request.getEmotions()));
+        }
+        if (request.hasSituation()) {
+            experience.updateSituation(request.getSituation());
+        }
+        if (request.hasTags()) {
+            experience.replaceTags(toTagSetForUpdate(request.getTags()));
+        }
+
+        return WalkExperienceDetailResponse.from(experience);
+    }
+
     private void validateQueryParameters(LocalDate from, LocalDate to, String tag) {
         boolean hasFrom = from != null;
         boolean hasTo = to != null;
@@ -157,6 +193,13 @@ public class WalkExperienceService {
         return result;
     }
 
+    private Set<Emotion> toEmotionSetForUpdate(List<Emotion> emotions) {
+        if (emotions == null) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "emotions must not be null.");
+        }
+        return toEmotionSet(emotions);
+    }
+
     private Set<String> toTagSet(List<String> tags) {
         if (tags == null) {
             return Set.of();
@@ -174,5 +217,24 @@ public class WalkExperienceService {
             }
         }
         return result;
+    }
+
+    private Set<String> toTagSetForUpdate(List<String> tags) {
+        if (tags == null) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "tags must not be null.");
+        }
+        if (tags.size() > 10) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "tags must not exceed 10 items.");
+        }
+        return toTagSet(tags);
+    }
+
+    private void validateTitle(String title) {
+        if (title == null || title.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "title must not be blank.");
+        }
+        if (title.length() > 100) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "title must not exceed 100 characters.");
+        }
     }
 }

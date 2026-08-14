@@ -129,6 +129,36 @@ public class WalkExperience extends BaseEntity {
         return experience;
     }
 
+    public void updateTitle(String title) {
+        this.title = title;
+    }
+
+    public void updateBody(String body) {
+        this.body = body;
+    }
+
+    public void updatePhotoUrl(String photoUrl) {
+        this.photoUrl = photoUrl;
+    }
+
+    public void updateCompanion(Companion companion) {
+        this.companion = companion;
+    }
+
+    public void updateSituation(Situation situation) {
+        this.situation = situation;
+    }
+
+    public void replaceEmotions(Set<Emotion> emotions) {
+        this.emotions.clear();
+        this.emotions.addAll(emotions);
+    }
+
+    public void replaceTags(Set<String> tags) {
+        this.tags.clear();
+        this.tags.addAll(tags);
+    }
+
     public UUID getId() {
         return id;
     }
