@@ -96,6 +96,73 @@ public class WalkExperience extends BaseEntity {
     protected WalkExperience() {
     }
 
+    public static WalkExperience create(
+            User user,
+            ExperienceDraft draft,
+            WalkCandidate candidate,
+            String title,
+            String body,
+            String photoUrl,
+            Companion companion,
+            Set<Emotion> emotions,
+            Situation situation,
+            Set<String> tags
+    ) {
+        WalkExperience experience = new WalkExperience();
+        experience.user = user;
+        experience.draft = draft;
+        experience.title = title;
+        experience.body = body;
+        experience.photoUrl = photoUrl;
+        experience.startedAt = candidate.getDetectedStartAt();
+        experience.endedAt = candidate.getDetectedEndAt();
+        experience.durationSeconds = candidate.getDurationSeconds();
+        experience.locationSummary = candidate.getLocationSummary();
+        experience.companion = companion;
+        experience.situation = situation;
+        if (emotions != null) {
+            experience.emotions.addAll(emotions);
+        }
+        if (tags != null) {
+            experience.tags.addAll(tags);
+        }
+        return experience;
+    }
+
+    public void updateTitle(String title) {
+        this.title = title;
+    }
+
+    public void updateBody(String body) {
+        this.body = body;
+    }
+
+    public void updatePhotoUrl(String photoUrl) {
+        this.photoUrl = photoUrl;
+    }
+
+    public void updateCompanion(Companion companion) {
+        this.companion = companion;
+    }
+
+    public void updateSituation(Situation situation) {
+        this.situation = situation;
+    }
+
+    public void replaceEmotions(Set<Emotion> emotions) {
+        this.emotions.clear();
+        this.emotions.addAll(emotions);
+    }
+
+    public void replaceTags(Set<String> tags) {
+        this.tags.clear();
+        this.tags.addAll(tags);
+    }
+
+    public void softDelete(OffsetDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
     public UUID getId() {
         return id;
     }
