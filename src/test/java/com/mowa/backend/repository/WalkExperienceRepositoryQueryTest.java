@@ -45,6 +45,25 @@ class WalkExperienceRepositoryQueryTest {
         assertThat(query).doesNotContain("where tag = :tag", "join fetch e.tags tag");
     }
 
+    @Test
+    void detailQueryAppliesIdOwnershipSoftDeleteAndFetchesCollectionsOnly() {
+        String query = query("findActiveByIdAndUserId", UUID.class, UUID.class);
+
+        assertThat(query).contains(
+                "select distinct e",
+                "left join fetch e.emotions",
+                "left join fetch e.tags",
+                "e.id = :experienceId",
+                "e.user.id = :userId",
+                "e.deletedAt is null"
+        );
+        assertThat(query).doesNotContain(
+                "e.draft",
+                "e.candidate",
+                "order by e.startedAt"
+        );
+    }
+
     private void assertCommonConditions(String query) {
         assertThat(query).contains(
                 "select distinct e",

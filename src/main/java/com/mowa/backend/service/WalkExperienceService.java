@@ -5,6 +5,7 @@ import com.mowa.backend.common.exception.ErrorCode;
 import com.mowa.backend.dto.walkexperience.CreateWalkExperienceRequest;
 import com.mowa.backend.dto.walkexperience.CreateWalkExperienceResponse;
 import com.mowa.backend.dto.walkexperience.WalkExperienceListResponse;
+import com.mowa.backend.dto.walkexperience.WalkExperienceDetailResponse;
 import com.mowa.backend.entity.AiGenerationStatus;
 import com.mowa.backend.entity.Emotion;
 import com.mowa.backend.entity.ExperienceDraft;
@@ -96,6 +97,13 @@ public class WalkExperienceService {
         return experiences.stream()
                 .map(WalkExperienceListResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public WalkExperienceDetailResponse get(UUID userId, UUID experienceId) {
+        WalkExperience experience = walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        return WalkExperienceDetailResponse.from(experience);
     }
 
     private void validateQueryParameters(LocalDate from, LocalDate to, String tag) {
