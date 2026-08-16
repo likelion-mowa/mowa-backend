@@ -7,6 +7,7 @@ import com.mowa.backend.dto.auth.LoginResponse;
 import com.mowa.backend.entity.User;
 import com.mowa.backend.repository.UserRepository;
 import com.mowa.backend.security.JwtTokenProvider;
+import java.util.UUID;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,6 @@ public class AuthService {
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
-        return new LoginResponse(jwtTokenProvider.createAccessToken(user.getId()));
+        return new LoginResponse(jwtTokenProvider.createAccessToken(user.getId(), UUID.randomUUID()));
     }
 }

@@ -41,7 +41,11 @@ public class WalkExperienceController {
             @Valid @RequestBody CreateWalkExperienceRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                walkExperienceService.create(authenticatedUser.userId(), request)
+                walkExperienceService.create(
+                        authenticatedUser.userId(),
+                        authenticatedUser.demoSessionId(),
+                        request
+                )
         ));
     }
 
@@ -55,7 +59,13 @@ public class WalkExperienceController {
             @RequestParam(required = false) String tag
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                walkExperienceService.getAll(authenticatedUser.userId(), from, to, tag)
+                walkExperienceService.getAll(
+                        authenticatedUser.userId(),
+                        authenticatedUser.demoSessionId(),
+                        from,
+                        to,
+                        tag
+                )
         ));
     }
 
@@ -65,7 +75,11 @@ public class WalkExperienceController {
             @PathVariable UUID experienceId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                walkExperienceService.get(authenticatedUser.userId(), experienceId)
+                walkExperienceService.get(
+                        authenticatedUser.userId(),
+                        authenticatedUser.demoSessionId(),
+                        experienceId
+                )
         ));
     }
 
@@ -76,7 +90,12 @@ public class WalkExperienceController {
             @Valid @RequestBody UpdateWalkExperienceRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                walkExperienceService.update(authenticatedUser.userId(), experienceId, request)
+                walkExperienceService.update(
+                        authenticatedUser.userId(),
+                        authenticatedUser.demoSessionId(),
+                        experienceId,
+                        request
+                )
         ));
     }
 
@@ -85,7 +104,11 @@ public class WalkExperienceController {
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @PathVariable UUID experienceId
     ) {
-        walkExperienceService.delete(authenticatedUser.userId(), experienceId);
+        walkExperienceService.delete(
+                authenticatedUser.userId(),
+                authenticatedUser.demoSessionId(),
+                experienceId
+        );
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

@@ -12,20 +12,22 @@ class WalkExperienceRepositoryQueryTest {
 
     @Test
     void allListQueriesApplyOwnershipSoftDeleteFetchAndDescendingOrder() {
-        assertCommonConditions(query("findAllActiveByUserId", UUID.class));
+        assertCommonConditions(query("findAllActiveByUserIdAndDemoSessionId", UUID.class, UUID.class));
         assertCommonConditions(query(
-                "findAllActiveByUserIdAndStartedAtRange",
+                "findAllActiveByUserIdAndDemoSessionIdAndStartedAtRange",
+                UUID.class,
                 UUID.class,
                 OffsetDateTime.class,
                 OffsetDateTime.class
         ));
-        assertCommonConditions(query("findAllActiveByUserIdAndTag", UUID.class, String.class));
+        assertCommonConditions(query("findAllActiveByUserIdAndDemoSessionIdAndTag", UUID.class, UUID.class, String.class));
     }
 
     @Test
     void dateRangeQueryUsesInclusiveStartAndExclusiveEnd() {
         String query = query(
-                "findAllActiveByUserIdAndStartedAtRange",
+                "findAllActiveByUserIdAndDemoSessionIdAndStartedAtRange",
+                UUID.class,
                 UUID.class,
                 OffsetDateTime.class,
                 OffsetDateTime.class
@@ -39,7 +41,7 @@ class WalkExperienceRepositoryQueryTest {
 
     @Test
     void tagQueryUsesMembershipWithoutRestrictingFetchedTags() {
-        String query = query("findAllActiveByUserIdAndTag", UUID.class, String.class);
+        String query = query("findAllActiveByUserIdAndDemoSessionIdAndTag", UUID.class, UUID.class, String.class);
 
         assertThat(query).contains("left join fetch e.tags", ":tag member of e.tags");
         assertThat(query).doesNotContain("where tag = :tag", "join fetch e.tags tag");
@@ -47,7 +49,7 @@ class WalkExperienceRepositoryQueryTest {
 
     @Test
     void detailQueryAppliesIdOwnershipSoftDeleteAndFetchesCollectionsOnly() {
-        String query = query("findActiveByIdAndUserId", UUID.class, UUID.class);
+        String query = query("findActiveByIdAndUserIdAndDemoSessionId", UUID.class, UUID.class, UUID.class);
 
         assertThat(query).contains(
                 "select distinct e",
@@ -55,6 +57,7 @@ class WalkExperienceRepositoryQueryTest {
                 "left join fetch e.tags",
                 "e.id = :experienceId",
                 "e.user.id = :userId",
+                "e.demoSessionId = :demoSessionId",
                 "e.deletedAt is null"
         );
         assertThat(query).doesNotContain(
@@ -70,6 +73,7 @@ class WalkExperienceRepositoryQueryTest {
                 "left join fetch e.emotions",
                 "left join fetch e.tags",
                 "e.user.id = :userId",
+                "e.demoSessionId = :demoSessionId",
                 "e.deletedAt is null",
                 "order by e.startedAt desc"
         );

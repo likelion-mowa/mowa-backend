@@ -42,12 +42,16 @@ public class WalkExperienceService {
     }
 
     @Transactional
-    public CreateWalkExperienceResponse create(UUID userId, CreateWalkExperienceRequest request) {
+    public CreateWalkExperienceResponse create(
+            UUID userId,
+            UUID demoSessionId,
+            CreateWalkExperienceRequest request
+    ) {
         ExperienceDraft draft = experienceDraftRepository
-                .findByIdAndUser_IdForUpdate(request.draftId(), userId)
+                .findByIdAndUser_IdAndDemoSessionIdForUpdate(request.draftId(), userId, demoSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
 
-        validateDraft(draft, userId);
+        validateDraft(draft, userId, demoSessionId);
         if (walkExperienceRepository.existsByDraft_Id(request.draftId())) {
             throw new BusinessException(ErrorCode.CONFLICT, "WalkExperience already exists for draft.");
         }
@@ -74,6 +78,7 @@ public class WalkExperienceService {
     @Transactional(readOnly = true)
     public List<WalkExperienceListResponse> getAll(
             UUID userId,
+            UUID demoSessionId,
             LocalDate from,
             LocalDate to,
             String tag
@@ -82,17 +87,19 @@ public class WalkExperienceService {
 
         List<WalkExperience> experiences;
         if (tag != null) {
-            experiences = walkExperienceRepository.findAllActiveByUserIdAndTag(userId, tag);
+            experiences = walkExperienceRepository
+                    .findAllActiveByUserIdAndDemoSessionIdAndTag(userId, demoSessionId, tag);
         } else if (from != null) {
             OffsetDateTime startInclusive = from.atStartOfDay(SERVICE_ZONE_ID).toOffsetDateTime();
             OffsetDateTime endExclusive = to.plusDays(1).atStartOfDay(SERVICE_ZONE_ID).toOffsetDateTime();
-            experiences = walkExperienceRepository.findAllActiveByUserIdAndStartedAtRange(
+            experiences = walkExperienceRepository.findAllActiveByUserIdAndDemoSessionIdAndStartedAtRange(
                     userId,
+                    demoSessionId,
                     startInclusive,
                     endExclusive
             );
         } else {
-            experiences = walkExperienceRepository.findAllActiveByUserId(userId);
+            experiences = walkExperienceRepository.findAllActiveByUserIdAndDemoSessionId(userId, demoSessionId);
         }
 
         return experiences.stream()
@@ -101,8 +108,9 @@ public class WalkExperienceService {
     }
 
     @Transactional(readOnly = true)
-    public WalkExperienceDetailResponse get(UUID userId, UUID experienceId) {
-        WalkExperience experience = walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId)
+    public WalkExperienceDetailResponse get(UUID userId, UUID demoSessionId, UUID experienceId) {
+        WalkExperience experience = walkExperienceRepository
+                .findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         return WalkExperienceDetailResponse.from(experience);
     }
@@ -110,10 +118,12 @@ public class WalkExperienceService {
     @Transactional
     public WalkExperienceDetailResponse update(
             UUID userId,
+            UUID demoSessionId,
             UUID experienceId,
             UpdateWalkExperienceRequest request
     ) {
-        WalkExperience experience = walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId)
+        WalkExperience experience = walkExperienceRepository
+                .findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
 
         if (request.hasTitle()) {
@@ -143,8 +153,9 @@ public class WalkExperienceService {
     }
 
     @Transactional
-    public void delete(UUID userId, UUID experienceId) {
-        WalkExperience experience = walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId)
+    public void delete(UUID userId, UUID demoSessionId, UUID experienceId) {
+        WalkExperience experience = walkExperienceRepository
+                .findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         experience.softDelete(OffsetDateTime.now());
     }
@@ -165,9 +176,11 @@ public class WalkExperienceService {
         }
     }
 
-    private void validateDraft(ExperienceDraft draft, UUID userId) {
+    private void validateDraft(ExperienceDraft draft, UUID userId, UUID demoSessionId) {
         if (!draft.getUser().getId().equals(userId)
-                || !draft.getCandidate().getUser().getId().equals(userId)) {
+                || !draft.getCandidate().getUser().getId().equals(userId)
+                || !draft.getDemoSessionId().equals(demoSessionId)
+                || !draft.getCandidate().getDemoSessionId().equals(demoSessionId)) {
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
         if (draft.getAiGenerationStatus() != AiGenerationStatus.SUCCESS) {

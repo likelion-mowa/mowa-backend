@@ -35,7 +35,12 @@ public class ExperienceDraftController {
             @Valid @RequestBody CreateExperienceDraftRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                experienceDraftService.create(authenticatedUser.userId(), candidateId, request)
+                experienceDraftService.create(
+                        authenticatedUser.userId(),
+                        authenticatedUser.demoSessionId(),
+                        candidateId,
+                        request
+                )
         ));
     }
 
@@ -46,7 +51,12 @@ public class ExperienceDraftController {
             @Valid @RequestBody UpdateExperienceDraftRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                experienceDraftService.update(authenticatedUser.userId(), draftId, request)
+                experienceDraftService.update(
+                        authenticatedUser.userId(),
+                        authenticatedUser.demoSessionId(),
+                        draftId,
+                        request
+                )
         ));
     }
 
@@ -56,7 +66,11 @@ public class ExperienceDraftController {
             @PathVariable UUID draftId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                experienceDraftService.generateAi(authenticatedUser.userId(), draftId)
+                experienceDraftService.generateAi(
+                        authenticatedUser.userId(),
+                        authenticatedUser.demoSessionId(),
+                        draftId
+                )
         ));
     }
 }

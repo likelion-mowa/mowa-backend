@@ -34,7 +34,11 @@ public class WalkCandidateController {
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @Valid @RequestBody CreateWalkCandidateRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.success(walkCandidateService.create(authenticatedUser.userId(), request)));
+        return ResponseEntity.ok(ApiResponse.success(walkCandidateService.create(
+                authenticatedUser.userId(),
+                authenticatedUser.demoSessionId(),
+                request
+        )));
     }
 
     @GetMapping("/{candidateId}")
@@ -42,7 +46,11 @@ public class WalkCandidateController {
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @PathVariable UUID candidateId
     ) {
-        return ResponseEntity.ok(ApiResponse.success(walkCandidateService.get(authenticatedUser.userId(), candidateId)));
+        return ResponseEntity.ok(ApiResponse.success(walkCandidateService.get(
+                authenticatedUser.userId(),
+                authenticatedUser.demoSessionId(),
+                candidateId
+        )));
     }
 
     @PatchMapping("/{candidateId}")
@@ -52,7 +60,12 @@ public class WalkCandidateController {
             @Valid @RequestBody UpdateWalkCandidateRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                walkCandidateService.update(authenticatedUser.userId(), candidateId, request)
+                walkCandidateService.update(
+                        authenticatedUser.userId(),
+                        authenticatedUser.demoSessionId(),
+                        candidateId,
+                        request
+                )
         ));
     }
 }

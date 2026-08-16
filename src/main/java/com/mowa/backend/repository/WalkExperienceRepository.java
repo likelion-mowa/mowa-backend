@@ -19,10 +19,14 @@ public interface WalkExperienceRepository extends JpaRepository<WalkExperience, 
             left join fetch e.emotions
             left join fetch e.tags
             where e.user.id = :userId
+              and e.demoSessionId = :demoSessionId
               and e.deletedAt is null
             order by e.startedAt desc
             """)
-    List<WalkExperience> findAllActiveByUserId(@Param("userId") UUID userId);
+    List<WalkExperience> findAllActiveByUserIdAndDemoSessionId(
+            @Param("userId") UUID userId,
+            @Param("demoSessionId") UUID demoSessionId
+    );
 
     @Query("""
             select distinct e
@@ -30,13 +34,15 @@ public interface WalkExperienceRepository extends JpaRepository<WalkExperience, 
             left join fetch e.emotions
             left join fetch e.tags
             where e.user.id = :userId
+              and e.demoSessionId = :demoSessionId
               and e.deletedAt is null
               and e.startedAt >= :startInclusive
               and e.startedAt < :endExclusive
             order by e.startedAt desc
             """)
-    List<WalkExperience> findAllActiveByUserIdAndStartedAtRange(
+    List<WalkExperience> findAllActiveByUserIdAndDemoSessionIdAndStartedAtRange(
             @Param("userId") UUID userId,
+            @Param("demoSessionId") UUID demoSessionId,
             @Param("startInclusive") OffsetDateTime startInclusive,
             @Param("endExclusive") OffsetDateTime endExclusive
     );
@@ -47,12 +53,14 @@ public interface WalkExperienceRepository extends JpaRepository<WalkExperience, 
             left join fetch e.emotions
             left join fetch e.tags
             where e.user.id = :userId
+              and e.demoSessionId = :demoSessionId
               and e.deletedAt is null
               and :tag member of e.tags
             order by e.startedAt desc
             """)
-    List<WalkExperience> findAllActiveByUserIdAndTag(
+    List<WalkExperience> findAllActiveByUserIdAndDemoSessionIdAndTag(
             @Param("userId") UUID userId,
+            @Param("demoSessionId") UUID demoSessionId,
             @Param("tag") String tag
     );
 
@@ -63,10 +71,12 @@ public interface WalkExperienceRepository extends JpaRepository<WalkExperience, 
             left join fetch e.tags
             where e.id = :experienceId
               and e.user.id = :userId
+              and e.demoSessionId = :demoSessionId
               and e.deletedAt is null
             """)
-    Optional<WalkExperience> findActiveByIdAndUserId(
+    Optional<WalkExperience> findActiveByIdAndUserIdAndDemoSessionId(
             @Param("experienceId") UUID experienceId,
-            @Param("userId") UUID userId
+            @Param("userId") UUID userId,
+            @Param("demoSessionId") UUID demoSessionId
     );
 }
