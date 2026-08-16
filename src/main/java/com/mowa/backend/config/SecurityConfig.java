@@ -55,6 +55,7 @@ public class SecurityConfig {
                 // 응답에 Access-Control-* 헤더가 하나도 붙지 않는다.
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -98,6 +99,23 @@ public class SecurityConfig {
         // 클라이언트가 호출하는 경로는 /api/v1 뿐이다. Swagger 등 나머지 경로는
         // 교차 출처로 열 이유가 없다.
         source.registerCorsConfiguration("/api/v1/**", configuration);
+        return source;
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        configuration.setAllowedOriginPatterns(List.of(
+                "http://localhost:[*]",
+                "http://127.0.0.1:[*]"
+        ));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/v1/**", configuration);
+
         return source;
     }
 
