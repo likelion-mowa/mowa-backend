@@ -37,6 +37,7 @@ class WalkExperienceUpdateServiceTest {
     private WalkExperienceRepository repository;
     private WalkExperienceService service;
     private UUID userId;
+    private UUID demoSessionId;
     private UUID experienceId;
     private WalkExperience experience;
 
@@ -45,9 +46,11 @@ class WalkExperienceUpdateServiceTest {
         repository = mock(WalkExperienceRepository.class);
         service = new WalkExperienceService(mock(ExperienceDraftRepository.class), repository);
         userId = UUID.randomUUID();
+        demoSessionId = UUID.randomUUID();
         experienceId = UUID.randomUUID();
         experience = experience();
-        when(repository.findActiveByIdAndUserId(experienceId, userId)).thenReturn(Optional.of(experience));
+        when(repository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
+                .thenReturn(Optional.of(experience));
     }
 
     @Test
@@ -61,9 +64,9 @@ class WalkExperienceUpdateServiceTest {
         request.setSituation(Situation.EVENING);
         request.setTags(List.of("changed", "#raw"));
 
-        WalkExperienceDetailResponse response = service.update(userId, experienceId, request);
+        WalkExperienceDetailResponse response = service.update(userId, demoSessionId, experienceId, request);
 
-        verify(repository).findActiveByIdAndUserId(experienceId, userId);
+        verify(repository).findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId);
         assertThat(response.title()).isEqualTo("changed");
         assertThat(response.body()).isEqualTo("changed body");
         assertThat(response.photoUrl()).isEqualTo("changed photo");
@@ -81,6 +84,7 @@ class WalkExperienceUpdateServiceTest {
     void omittedFieldsRemainUnchanged() {
         WalkExperienceDetailResponse response = service.update(
                 userId,
+                demoSessionId,
                 experienceId,
                 new UpdateWalkExperienceRequest()
         );
@@ -102,7 +106,7 @@ class WalkExperienceUpdateServiceTest {
         request.setCompanion(null);
         request.setSituation(null);
 
-        WalkExperienceDetailResponse cleared = service.update(userId, experienceId, request);
+        WalkExperienceDetailResponse cleared = service.update(userId, demoSessionId, experienceId, request);
 
         assertThat(cleared.body()).isNull();
         assertThat(cleared.photoUrl()).isNull();
@@ -111,7 +115,7 @@ class WalkExperienceUpdateServiceTest {
 
         UpdateWalkExperienceRequest emptyBody = new UpdateWalkExperienceRequest();
         emptyBody.setBody("");
-        assertThat(service.update(userId, experienceId, emptyBody).body()).isEmpty();
+        assertThat(service.update(userId, demoSessionId, experienceId, emptyBody).body()).isEmpty();
     }
 
     @Test
@@ -119,7 +123,7 @@ class WalkExperienceUpdateServiceTest {
         UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
         request.setTitle("a".repeat(100));
 
-        assertThat(service.update(userId, experienceId, request).title()).hasSize(100);
+        assertThat(service.update(userId, demoSessionId, experienceId, request).title()).hasSize(100);
     }
 
     @Test
@@ -134,11 +138,11 @@ class WalkExperienceUpdateServiceTest {
     void emotionsCanBeClearedOrReplaced() {
         UpdateWalkExperienceRequest clear = new UpdateWalkExperienceRequest();
         clear.setEmotions(List.of());
-        assertThat(service.update(userId, experienceId, clear).emotions()).isEmpty();
+        assertThat(service.update(userId, demoSessionId, experienceId, clear).emotions()).isEmpty();
 
         UpdateWalkExperienceRequest replace = new UpdateWalkExperienceRequest();
         replace.setEmotions(List.of(Emotion.TIRED, Emotion.CALM));
-        assertThat(service.update(userId, experienceId, replace).emotions())
+        assertThat(service.update(userId, demoSessionId, experienceId, replace).emotions())
                 .containsExactly(Emotion.CALM, Emotion.TIRED);
     }
 
@@ -163,11 +167,11 @@ class WalkExperienceUpdateServiceTest {
     void tagsCanBeClearedOrReplacedWithoutNormalization() {
         UpdateWalkExperienceRequest clear = new UpdateWalkExperienceRequest();
         clear.setTags(List.of());
-        assertThat(service.update(userId, experienceId, clear).tags()).isEmpty();
+        assertThat(service.update(userId, demoSessionId, experienceId, clear).tags()).isEmpty();
 
         UpdateWalkExperienceRequest replace = new UpdateWalkExperienceRequest();
         replace.setTags(List.of(" Tag ", "tag", "#tag"));
-        assertThat(service.update(userId, experienceId, replace).tags())
+        assertThat(service.update(userId, demoSessionId, experienceId, replace).tags())
                 .containsExactlyInAnyOrder(" Tag ", "tag", "#tag");
     }
 
@@ -178,7 +182,7 @@ class WalkExperienceUpdateServiceTest {
                 "a".repeat(50), "2", "3", "4", "5", "6", "7", "8", "9", "10"
         ));
 
-        assertThat(service.update(userId, experienceId, request).tags()).hasSize(10);
+        assertThat(service.update(userId, demoSessionId, experienceId, request).tags()).hasSize(10);
     }
 
     @Test
@@ -193,18 +197,23 @@ class WalkExperienceUpdateServiceTest {
     }
 
     @Test
-    void missingOtherOwnedAndDeletedExperiencesAreAllNotFound() {
-        when(repository.findActiveByIdAndUserId(experienceId, userId)).thenReturn(Optional.empty());
+    void missingOtherOwnedOtherSessionAndDeletedExperiencesAreAllNotFound() {
+        when(repository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
+                .thenReturn(Optional.empty());
 
-        for (String ignored : List.of("missing", "other-owned", "deleted")) {
-            assertThatThrownBy(() -> service.update(userId, experienceId, new UpdateWalkExperienceRequest()))
-                    .isInstanceOfSatisfying(BusinessException.class,
-                            exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
+        for (String ignored : List.of("missing", "other-owned", "other-session", "deleted")) {
+            assertThatThrownBy(() -> service.update(
+                    userId,
+                    demoSessionId,
+                    experienceId,
+                    new UpdateWalkExperienceRequest()
+            )).isInstanceOfSatisfying(BusinessException.class,
+                    exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
         }
     }
 
     private void assertInvalid(UpdateWalkExperienceRequest request) {
-        assertThatThrownBy(() -> service.update(userId, experienceId, request))
+        assertThatThrownBy(() -> service.update(userId, demoSessionId, experienceId, request))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
     }
@@ -231,6 +240,7 @@ class WalkExperienceUpdateServiceTest {
         User user = mock(User.class);
         ExperienceDraft draft = mock(ExperienceDraft.class);
         WalkCandidate candidate = mock(WalkCandidate.class);
+        when(draft.getDemoSessionId()).thenReturn(demoSessionId);
         when(candidate.getDetectedStartAt()).thenReturn(STARTED_AT);
         when(candidate.getDetectedEndAt()).thenReturn(ENDED_AT);
         when(candidate.getDurationSeconds()).thenReturn(3600);

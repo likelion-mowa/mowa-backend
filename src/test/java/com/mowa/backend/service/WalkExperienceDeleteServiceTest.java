@@ -33,6 +33,7 @@ class WalkExperienceDeleteServiceTest {
     private ExperienceDraftRepository experienceDraftRepository;
     private WalkExperienceService service;
     private UUID userId;
+    private UUID demoSessionId;
     private UUID experienceId;
 
     @BeforeEach
@@ -41,6 +42,7 @@ class WalkExperienceDeleteServiceTest {
         experienceDraftRepository = mock(ExperienceDraftRepository.class);
         service = new WalkExperienceService(experienceDraftRepository, walkExperienceRepository);
         userId = UUID.randomUUID();
+        demoSessionId = UUID.randomUUID();
         experienceId = UUID.randomUUID();
     }
 
@@ -61,14 +63,18 @@ class WalkExperienceDeleteServiceTest {
                 Situation.MORNING,
                 Set.of("tag")
         );
-        when(walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId))
+        when(walkExperienceRepository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
                 .thenReturn(Optional.of(experience));
         OffsetDateTime before = OffsetDateTime.now();
 
-        service.delete(userId, experienceId);
+        service.delete(userId, demoSessionId, experienceId);
 
         OffsetDateTime after = OffsetDateTime.now();
-        verify(walkExperienceRepository).findActiveByIdAndUserId(experienceId, userId);
+        verify(walkExperienceRepository).findActiveByIdAndUserIdAndDemoSessionId(
+                experienceId,
+                userId,
+                demoSessionId
+        );
         assertThat(experience.getDeletedAt()).isBetween(before, after);
         assertThat(experience.getUser()).isSameAs(user);
         assertThat(experience.getDraft()).isSameAs(draft);
@@ -113,10 +119,10 @@ class WalkExperienceDeleteServiceTest {
     }
 
     private void assertNotFoundForEmptyRepositoryResult() {
-        when(walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId))
+        when(walkExperienceRepository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.delete(userId, experienceId))
+        assertThatThrownBy(() -> service.delete(userId, demoSessionId, experienceId))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
         verify(walkExperienceRepository, never()).delete(any(WalkExperience.class));

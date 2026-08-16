@@ -20,8 +20,9 @@ class ExperienceDraftAiGenerationTransactionService {
     }
 
     @Transactional
-    public ExperienceDraftAiGenerationInput startGeneration(UUID userId, UUID draftId) {
-        ExperienceDraft draft = experienceDraftRepository.findByIdAndUser_IdForUpdate(draftId, userId)
+    public ExperienceDraftAiGenerationInput startGeneration(UUID userId, UUID demoSessionId, UUID draftId) {
+        ExperienceDraft draft = experienceDraftRepository
+                .findByIdAndUser_IdAndDemoSessionIdForUpdate(draftId, userId, demoSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
 
         validateGeneratableStatus(draft.getAiGenerationStatus());
@@ -33,10 +34,11 @@ class ExperienceDraftAiGenerationTransactionService {
     @Transactional
     public ExperienceDraftAiGenerationResponse completeGeneration(
             UUID userId,
+            UUID demoSessionId,
             UUID draftId,
             ExperienceDraftAiGenerationResult result
     ) {
-        ExperienceDraft draft = findDraft(userId, draftId);
+        ExperienceDraft draft = findDraft(userId, demoSessionId, draftId);
         draft.completeAiGeneration(result.aiTitle(), result.aiBody());
         return new ExperienceDraftAiGenerationResponse(
                 draft.getId(),
@@ -48,13 +50,13 @@ class ExperienceDraftAiGenerationTransactionService {
     }
 
     @Transactional
-    public void failGeneration(UUID userId, UUID draftId) {
-        experienceDraftRepository.findByIdAndUser_Id(draftId, userId)
+    public void failGeneration(UUID userId, UUID demoSessionId, UUID draftId) {
+        experienceDraftRepository.findByIdAndUser_IdAndDemoSessionId(draftId, userId, demoSessionId)
                 .ifPresent(ExperienceDraft::failAiGeneration);
     }
 
-    private ExperienceDraft findDraft(UUID userId, UUID draftId) {
-        return experienceDraftRepository.findByIdAndUser_Id(draftId, userId)
+    private ExperienceDraft findDraft(UUID userId, UUID demoSessionId, UUID draftId) {
+        return experienceDraftRepository.findByIdAndUser_IdAndDemoSessionId(draftId, userId, demoSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 

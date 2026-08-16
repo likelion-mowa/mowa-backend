@@ -13,7 +13,7 @@ public interface ExperienceDraftRepository extends JpaRepository<ExperienceDraft
 
     boolean existsByCandidate_Id(UUID candidateId);
 
-    Optional<ExperienceDraft> findByIdAndUser_Id(UUID id, UUID userId);
+    Optional<ExperienceDraft> findByIdAndUser_IdAndDemoSessionId(UUID id, UUID userId, UUID demoSessionId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
@@ -22,9 +22,11 @@ public interface ExperienceDraftRepository extends JpaRepository<ExperienceDraft
             join fetch d.candidate
             where d.id = :id
               and d.user.id = :userId
+              and d.demoSessionId = :demoSessionId
             """)
-    Optional<ExperienceDraft> findByIdAndUser_IdForUpdate(
+    Optional<ExperienceDraft> findByIdAndUser_IdAndDemoSessionIdForUpdate(
             @Param("id") UUID id,
-            @Param("userId") UUID userId
+            @Param("userId") UUID userId,
+            @Param("demoSessionId") UUID demoSessionId
     );
 }

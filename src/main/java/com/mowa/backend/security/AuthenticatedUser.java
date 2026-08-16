@@ -2,5 +2,5 @@ package com.mowa.backend.security;
 
 import java.util.UUID;
 
-public record AuthenticatedUser(UUID userId) {
+public record AuthenticatedUser(UUID userId, UUID demoSessionId) {
 }

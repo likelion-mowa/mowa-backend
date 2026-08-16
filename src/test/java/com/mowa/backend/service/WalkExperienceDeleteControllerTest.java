@@ -19,14 +19,15 @@ class WalkExperienceDeleteControllerTest {
         WalkExperienceService service = mock(WalkExperienceService.class);
         WalkExperienceController controller = new WalkExperienceController(service);
         UUID userId = UUID.randomUUID();
+        UUID demoSessionId = UUID.randomUUID();
         UUID experienceId = UUID.randomUUID();
 
         ResponseEntity<ApiResponse<Void>> response = controller.delete(
-                new AuthenticatedUser(userId),
+                new AuthenticatedUser(userId, demoSessionId),
                 experienceId
         );
 
-        verify(service).delete(userId, experienceId);
+        verify(service).delete(userId, demoSessionId, experienceId);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().isSuccess()).isTrue();

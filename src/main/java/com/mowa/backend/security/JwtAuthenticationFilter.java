@@ -6,7 +6,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -34,8 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
 
         if (token != null && jwtTokenProvider.isValid(token)) {
-            UUID userId = jwtTokenProvider.getUserId(token);
-            AuthenticatedUser principal = new AuthenticatedUser(userId);
+            AuthenticatedUser principal = jwtTokenProvider.getAuthenticatedUser(token);
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(principal, null, List.of());
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

@@ -28,6 +28,9 @@ public class WalkCandidate extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(name = "demo_session_id", nullable = false)
+    private UUID demoSessionId;
+
     @Column(name = "detected_start_at", nullable = false)
     private OffsetDateTime detectedStartAt;
 
@@ -47,9 +50,15 @@ public class WalkCandidate extends BaseEntity {
     protected WalkCandidate() {
     }
 
-    public static WalkCandidate create(User user, OffsetDateTime detectedStartAt, String locationSummary) {
+    public static WalkCandidate create(
+            User user,
+            UUID demoSessionId,
+            OffsetDateTime detectedStartAt,
+            String locationSummary
+    ) {
         WalkCandidate candidate = new WalkCandidate();
         candidate.user = user;
+        candidate.demoSessionId = demoSessionId;
         candidate.detectedStartAt = detectedStartAt;
         candidate.locationSummary = locationSummary;
         candidate.status = CandidateStatus.DETECTED;
@@ -78,6 +87,10 @@ public class WalkCandidate extends BaseEntity {
 
     public User getUser() {
         return user;
+    }
+
+    public UUID getDemoSessionId() {
+        return demoSessionId;
     }
 
     public OffsetDateTime getDetectedStartAt() {

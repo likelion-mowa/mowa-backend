@@ -34,124 +34,160 @@ class WalkExperienceServiceTest {
     private ExperienceDraftRepository experienceDraftRepository;
     private WalkExperienceRepository walkExperienceRepository;
     private WalkExperienceService walkExperienceService;
+    private UUID userId;
+    private UUID demoSessionId;
 
     @BeforeEach
     void setUp() {
         experienceDraftRepository = mock(ExperienceDraftRepository.class);
         walkExperienceRepository = mock(WalkExperienceRepository.class);
         walkExperienceService = new WalkExperienceService(experienceDraftRepository, walkExperienceRepository);
+        userId = UUID.randomUUID();
+        demoSessionId = UUID.randomUUID();
     }
 
     @Test
-    void createsExperienceWithCandidateSnapshotAndFinalRequestValues() {
-        UUID userId = UUID.randomUUID();
+    void createsExperienceWithCandidateSnapshotFinalRequestValuesAndDemoSession() {
         UUID draftId = UUID.randomUUID();
         OffsetDateTime startedAt = OffsetDateTime.parse("2026-08-12T13:00:00+09:00");
         OffsetDateTime endedAt = OffsetDateTime.parse("2026-08-12T14:00:00+09:00");
-        ExperienceDraft draft = successfulDraft(userId, startedAt, endedAt, 3600, "망원동");
-        CreateWalkExperienceRequest request = request(draftId, List.of(Emotion.CALM), List.of("망원동"));
+        ExperienceDraft draft = successfulDraft(startedAt, endedAt, 3600, "park");
+        CreateWalkExperienceRequest request = request(draftId, List.of(Emotion.CALM), List.of("park"));
 
-        when(experienceDraftRepository.findByIdAndUser_IdForUpdate(draftId, userId))
-                .thenReturn(Optional.of(draft));
+        when(experienceDraftRepository.findByIdAndUser_IdAndDemoSessionIdForUpdate(
+                draftId,
+                userId,
+                demoSessionId
+        )).thenReturn(Optional.of(draft));
         when(walkExperienceRepository.existsByDraft_Id(draftId)).thenReturn(false);
         when(walkExperienceRepository.saveAndFlush(any(WalkExperience.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        walkExperienceService.create(userId, request);
+        walkExperienceService.create(userId, demoSessionId, request);
 
         ArgumentCaptor<WalkExperience> captor = ArgumentCaptor.forClass(WalkExperience.class);
         verify(walkExperienceRepository).saveAndFlush(captor.capture());
         WalkExperience saved = captor.getValue();
+        assertThat(saved.getDemoSessionId()).isEqualTo(demoSessionId);
         assertThat(saved.getStartedAt()).isEqualTo(startedAt);
         assertThat(saved.getEndedAt()).isEqualTo(endedAt);
         assertThat(saved.getDurationSeconds()).isEqualTo(3600);
-        assertThat(saved.getLocationSummary()).isEqualTo("망원동");
-        assertThat(saved.getTitle()).isEqualTo("최종 제목");
+        assertThat(saved.getLocationSummary()).isEqualTo("park");
+        assertThat(saved.getTitle()).isEqualTo("final title");
         assertThat(saved.getBody()).isEmpty();
         assertThat(saved.getPhotoUrl()).isEqualTo("https://example.com/photo.jpg");
         assertThat(saved.getCompanion()).isEqualTo(Companion.ALONE);
         assertThat(saved.getEmotions()).containsExactly(Emotion.CALM);
         assertThat(saved.getSituation()).isEqualTo(Situation.AFTERNOON);
-        assertThat(saved.getTags()).containsExactly("망원동");
+        assertThat(saved.getTags()).containsExactly("park");
     }
 
     @Test
-    void rejectsDraftThatIsNotOwnedAsNotFound() {
-        UUID userId = UUID.randomUUID();
+    void rejectsDraftThatIsNotOwnedOrNotInSessionAsNotFound() {
         UUID draftId = UUID.randomUUID();
-        when(experienceDraftRepository.findByIdAndUser_IdForUpdate(draftId, userId))
-                .thenReturn(Optional.empty());
+        when(experienceDraftRepository.findByIdAndUser_IdAndDemoSessionIdForUpdate(
+                draftId,
+                userId,
+                demoSessionId
+        )).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> walkExperienceService.create(userId, request(draftId, null, null)))
+        assertThatThrownBy(() -> walkExperienceService.create(userId, demoSessionId, request(draftId, null, null)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
+    }
+
+    @Test
+    void rejectsDraftCandidateDemoSessionMismatchAsNotFound() {
+        UUID draftId = UUID.randomUUID();
+        ExperienceDraft draft = successfulDraft(
+                OffsetDateTime.now(),
+                OffsetDateTime.now(),
+                10,
+                null,
+                UUID.randomUUID(),
+                demoSessionId
+        );
+        when(experienceDraftRepository.findByIdAndUser_IdAndDemoSessionIdForUpdate(
+                draftId,
+                userId,
+                demoSessionId
+        )).thenReturn(Optional.of(draft));
+
+        assertThatThrownBy(() -> walkExperienceService.create(userId, demoSessionId, request(draftId, null, null)))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
     }
 
     @Test
     void rejectsDraftWhenAiStatusIsNotSuccess() {
-        UUID userId = UUID.randomUUID();
         UUID draftId = UUID.randomUUID();
-        ExperienceDraft draft = draft(userId, AiGenerationStatus.PENDING,
-                OffsetDateTime.now(), OffsetDateTime.now(), 10, null);
-        when(experienceDraftRepository.findByIdAndUser_IdForUpdate(draftId, userId))
-                .thenReturn(Optional.of(draft));
+        ExperienceDraft draft = draft(
+                AiGenerationStatus.PENDING,
+                OffsetDateTime.now(),
+                OffsetDateTime.now(),
+                10,
+                null,
+                demoSessionId,
+                demoSessionId
+        );
+        when(experienceDraftRepository.findByIdAndUser_IdAndDemoSessionIdForUpdate(
+                draftId,
+                userId,
+                demoSessionId
+        )).thenReturn(Optional.of(draft));
 
-        assertThatThrownBy(() -> walkExperienceService.create(userId, request(draftId, null, null)))
+        assertThatThrownBy(() -> walkExperienceService.create(userId, demoSessionId, request(draftId, null, null)))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
     }
 
     @Test
     void rejectsExistingExperienceForDraftAsConflict() {
-        UUID userId = UUID.randomUUID();
         UUID draftId = UUID.randomUUID();
-        ExperienceDraft draft = successfulDraft(
-                userId, OffsetDateTime.now(), OffsetDateTime.now(), 10, null);
-        when(experienceDraftRepository.findByIdAndUser_IdForUpdate(draftId, userId))
-                .thenReturn(Optional.of(draft));
+        ExperienceDraft draft = successfulDraft(OffsetDateTime.now(), OffsetDateTime.now(), 10, null);
+        when(experienceDraftRepository.findByIdAndUser_IdAndDemoSessionIdForUpdate(
+                draftId,
+                userId,
+                demoSessionId
+        )).thenReturn(Optional.of(draft));
         when(walkExperienceRepository.existsByDraft_Id(draftId)).thenReturn(true);
 
-        assertThatThrownBy(() -> walkExperienceService.create(userId, request(draftId, null, null)))
+        assertThatThrownBy(() -> walkExperienceService.create(userId, demoSessionId, request(draftId, null, null)))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
     }
 
     @Test
     void rejectsMissingCandidateDetectedEndAtAsConflict() {
-        UUID userId = UUID.randomUUID();
         UUID draftId = UUID.randomUUID();
-        ExperienceDraft draft = successfulDraft(userId, OffsetDateTime.now(), null, 10, null);
-        stubCreatableDraft(userId, draftId, draft);
+        ExperienceDraft draft = successfulDraft(OffsetDateTime.now(), null, 10, null);
+        stubCreatableDraft(draftId, draft);
 
-        assertThatThrownBy(() -> walkExperienceService.create(userId, request(draftId, null, null)))
+        assertThatThrownBy(() -> walkExperienceService.create(userId, demoSessionId, request(draftId, null, null)))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
     }
 
     @Test
     void rejectsMissingCandidateDurationSecondsAsConflict() {
-        UUID userId = UUID.randomUUID();
         UUID draftId = UUID.randomUUID();
-        ExperienceDraft draft = successfulDraft(
-                userId, OffsetDateTime.now(), OffsetDateTime.now(), null, null);
-        stubCreatableDraft(userId, draftId, draft);
+        ExperienceDraft draft = successfulDraft(OffsetDateTime.now(), OffsetDateTime.now(), null, null);
+        stubCreatableDraft(draftId, draft);
 
-        assertThatThrownBy(() -> walkExperienceService.create(userId, request(draftId, null, null)))
+        assertThatThrownBy(() -> walkExperienceService.create(userId, demoSessionId, request(draftId, null, null)))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
     }
 
     @Test
     void storesNullableEmotionAndTagArraysAsEmptyCollections() {
-        UUID userId = UUID.randomUUID();
         UUID draftId = UUID.randomUUID();
-        ExperienceDraft draft = successfulDraft(
-                userId, OffsetDateTime.now(), OffsetDateTime.now(), 10, null);
-        stubCreatableDraft(userId, draftId, draft);
+        ExperienceDraft draft = successfulDraft(OffsetDateTime.now(), OffsetDateTime.now(), 10, null);
+        stubCreatableDraft(draftId, draft);
         when(walkExperienceRepository.saveAndFlush(any(WalkExperience.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        walkExperienceService.create(userId, request(draftId, null, null));
+        walkExperienceService.create(userId, demoSessionId, request(draftId, null, null));
 
         ArgumentCaptor<WalkExperience> captor = ArgumentCaptor.forClass(WalkExperience.class);
         verify(walkExperienceRepository).saveAndFlush(captor.capture());
@@ -161,52 +197,51 @@ class WalkExperienceServiceTest {
 
     @Test
     void doesNotTranslateUnclassifiedDataIntegrityViolationAsDuplicateConflict() {
-        UUID userId = UUID.randomUUID();
         UUID draftId = UUID.randomUUID();
-        ExperienceDraft draft = successfulDraft(
-                userId, OffsetDateTime.now(), OffsetDateTime.now(), 10, null);
-        stubCreatableDraft(userId, draftId, draft);
+        ExperienceDraft draft = successfulDraft(OffsetDateTime.now(), OffsetDateTime.now(), 10, null);
+        stubCreatableDraft(draftId, draft);
         DataIntegrityViolationException databaseException =
                 new DataIntegrityViolationException("unclassified constraint violation");
         when(walkExperienceRepository.saveAndFlush(any(WalkExperience.class))).thenThrow(databaseException);
 
-        assertThatThrownBy(() -> walkExperienceService.create(userId, request(draftId, null, null)))
+        assertThatThrownBy(() -> walkExperienceService.create(userId, demoSessionId, request(draftId, null, null)))
                 .isSameAs(databaseException);
     }
 
     @Test
     void rejectsDuplicateEmotionAndTagValuesAsInvalidRequest() {
-        UUID userId = UUID.randomUUID();
         UUID draftId = UUID.randomUUID();
-        ExperienceDraft draft = successfulDraft(
-                userId, OffsetDateTime.now(), OffsetDateTime.now(), 10, null);
-        when(experienceDraftRepository.findByIdAndUser_IdForUpdate(draftId, userId))
-                .thenReturn(Optional.of(draft));
-        when(walkExperienceRepository.existsByDraft_Id(draftId)).thenReturn(false);
+        ExperienceDraft draft = successfulDraft(OffsetDateTime.now(), OffsetDateTime.now(), 10, null);
+        stubCreatableDraft(draftId, draft);
 
         assertThatThrownBy(() -> walkExperienceService.create(
                 userId,
-                request(draftId, List.of(Emotion.CALM, Emotion.CALM), List.of("태그"))
+                demoSessionId,
+                request(draftId, List.of(Emotion.CALM, Emotion.CALM), List.of("tag"))
         )).isInstanceOfSatisfying(BusinessException.class,
                 exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
 
         assertThatThrownBy(() -> walkExperienceService.create(
                 userId,
-                request(draftId, List.of(Emotion.CALM), List.of("태그", "태그"))
+                demoSessionId,
+                request(draftId, List.of(Emotion.CALM), List.of("tag", "tag"))
         )).isInstanceOfSatisfying(BusinessException.class,
                 exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
     }
 
-    private void stubCreatableDraft(UUID userId, UUID draftId, ExperienceDraft draft) {
-        when(experienceDraftRepository.findByIdAndUser_IdForUpdate(draftId, userId))
-                .thenReturn(Optional.of(draft));
+    private void stubCreatableDraft(UUID draftId, ExperienceDraft draft) {
+        when(experienceDraftRepository.findByIdAndUser_IdAndDemoSessionIdForUpdate(
+                draftId,
+                userId,
+                demoSessionId
+        )).thenReturn(Optional.of(draft));
         when(walkExperienceRepository.existsByDraft_Id(draftId)).thenReturn(false);
     }
 
     private CreateWalkExperienceRequest request(UUID draftId, List<Emotion> emotions, List<String> tags) {
         return new CreateWalkExperienceRequest(
                 draftId,
-                "최종 제목",
+                "final title",
                 "",
                 "https://example.com/photo.jpg",
                 Companion.ALONE,
@@ -217,33 +252,54 @@ class WalkExperienceServiceTest {
     }
 
     private ExperienceDraft successfulDraft(
-            UUID userId,
             OffsetDateTime startedAt,
             OffsetDateTime endedAt,
             Integer durationSeconds,
             String locationSummary
     ) {
-        return draft(userId, AiGenerationStatus.SUCCESS, startedAt, endedAt, durationSeconds, locationSummary);
+        return successfulDraft(startedAt, endedAt, durationSeconds, locationSummary, demoSessionId, demoSessionId);
+    }
+
+    private ExperienceDraft successfulDraft(
+            OffsetDateTime startedAt,
+            OffsetDateTime endedAt,
+            Integer durationSeconds,
+            String locationSummary,
+            UUID draftDemoSessionId,
+            UUID candidateDemoSessionId
+    ) {
+        return draft(
+                AiGenerationStatus.SUCCESS,
+                startedAt,
+                endedAt,
+                durationSeconds,
+                locationSummary,
+                draftDemoSessionId,
+                candidateDemoSessionId
+        );
     }
 
     private ExperienceDraft draft(
-            UUID userId,
             AiGenerationStatus status,
             OffsetDateTime startedAt,
             OffsetDateTime endedAt,
             Integer durationSeconds,
-            String locationSummary
+            String locationSummary,
+            UUID draftDemoSessionId,
+            UUID candidateDemoSessionId
     ) {
         User user = mock(User.class);
         WalkCandidate candidate = mock(WalkCandidate.class);
         ExperienceDraft draft = mock(ExperienceDraft.class);
         when(user.getId()).thenReturn(userId);
         when(candidate.getUser()).thenReturn(user);
+        when(candidate.getDemoSessionId()).thenReturn(candidateDemoSessionId);
         when(candidate.getDetectedStartAt()).thenReturn(startedAt);
         when(candidate.getDetectedEndAt()).thenReturn(endedAt);
         when(candidate.getDurationSeconds()).thenReturn(durationSeconds);
         when(candidate.getLocationSummary()).thenReturn(locationSummary);
         when(draft.getUser()).thenReturn(user);
+        when(draft.getDemoSessionId()).thenReturn(draftDemoSessionId);
         when(draft.getCandidate()).thenReturn(candidate);
         when(draft.getAiGenerationStatus()).thenReturn(status);
         return draft;

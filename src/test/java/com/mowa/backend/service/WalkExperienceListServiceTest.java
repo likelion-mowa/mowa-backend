@@ -31,6 +31,7 @@ class WalkExperienceListServiceTest {
     private WalkExperienceRepository walkExperienceRepository;
     private WalkExperienceService walkExperienceService;
     private UUID userId;
+    private UUID demoSessionId;
 
     @BeforeEach
     void setUp() {
@@ -40,33 +41,43 @@ class WalkExperienceListServiceTest {
                 walkExperienceRepository
         );
         userId = UUID.randomUUID();
+        demoSessionId = UUID.randomUUID();
     }
 
     @Test
-    void getsAllExperiencesWithoutQueryParameters() {
-        when(walkExperienceRepository.findAllActiveByUserId(userId)).thenReturn(List.of());
+    void getsAllExperiencesWithoutQueryParametersForCurrentDemoSession() {
+        when(walkExperienceRepository.findAllActiveByUserIdAndDemoSessionId(userId, demoSessionId))
+                .thenReturn(List.of());
 
-        List<WalkExperienceListResponse> result = walkExperienceService.getAll(userId, null, null, null);
+        List<WalkExperienceListResponse> result = walkExperienceService.getAll(
+                userId,
+                demoSessionId,
+                null,
+                null,
+                null
+        );
 
         assertThat(result).isEmpty();
-        verify(walkExperienceRepository).findAllActiveByUserId(userId);
+        verify(walkExperienceRepository).findAllActiveByUserIdAndDemoSessionId(userId, demoSessionId);
     }
 
     @Test
     void getsDateRangeUsingInclusiveKstStartAndExclusiveDayAfterEnd() {
         LocalDate date = LocalDate.of(2026, 8, 11);
-        when(walkExperienceRepository.findAllActiveByUserIdAndStartedAtRange(
+        when(walkExperienceRepository.findAllActiveByUserIdAndDemoSessionIdAndStartedAtRange(
                 org.mockito.ArgumentMatchers.eq(userId),
+                org.mockito.ArgumentMatchers.eq(demoSessionId),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()
         )).thenReturn(List.of());
 
-        walkExperienceService.getAll(userId, date, date, null);
+        walkExperienceService.getAll(userId, demoSessionId, date, date, null);
 
         ArgumentCaptor<OffsetDateTime> startCaptor = ArgumentCaptor.forClass(OffsetDateTime.class);
         ArgumentCaptor<OffsetDateTime> endCaptor = ArgumentCaptor.forClass(OffsetDateTime.class);
-        verify(walkExperienceRepository).findAllActiveByUserIdAndStartedAtRange(
+        verify(walkExperienceRepository).findAllActiveByUserIdAndDemoSessionIdAndStartedAtRange(
                 org.mockito.ArgumentMatchers.eq(userId),
+                org.mockito.ArgumentMatchers.eq(demoSessionId),
                 startCaptor.capture(),
                 endCaptor.capture()
         );
@@ -91,47 +102,61 @@ class WalkExperienceListServiceTest {
 
     @Test
     void rejectsDateRangeCombinedWithTag() {
-        assertInvalidRequest(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), "망원동");
+        assertInvalidRequest(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), "park");
     }
 
     @Test
-    void getsExperiencesByExactTag() {
-        when(walkExperienceRepository.findAllActiveByUserIdAndTag(userId, "#망원동"))
-                .thenReturn(List.of());
+    void getsExperiencesByExactTagForCurrentDemoSession() {
+        when(walkExperienceRepository.findAllActiveByUserIdAndDemoSessionIdAndTag(
+                userId,
+                demoSessionId,
+                "#park"
+        )).thenReturn(List.of());
 
-        walkExperienceService.getAll(userId, null, null, "#망원동");
+        walkExperienceService.getAll(userId, demoSessionId, null, null, "#park");
 
-        verify(walkExperienceRepository).findAllActiveByUserIdAndTag(userId, "#망원동");
+        verify(walkExperienceRepository).findAllActiveByUserIdAndDemoSessionIdAndTag(
+                userId,
+                demoSessionId,
+                "#park"
+        );
     }
 
     @Test
     void preservesRepositoryOrderAndMapsOnlyListResponseFields() {
         UUID firstId = UUID.randomUUID();
         UUID secondId = UUID.randomUUID();
-        WalkExperience first = experience(firstId, Set.of(Emotion.PENSIVE, Emotion.CALM), "두번째", "첫번째");
+        WalkExperience first = experience(firstId, Set.of(Emotion.PENSIVE, Emotion.CALM), "second", "first");
         WalkExperience second = experience(secondId, Set.of(), new String[0]);
-        when(walkExperienceRepository.findAllActiveByUserId(userId)).thenReturn(List.of(first, second));
+        when(walkExperienceRepository.findAllActiveByUserIdAndDemoSessionId(userId, demoSessionId))
+                .thenReturn(List.of(first, second));
 
-        List<WalkExperienceListResponse> result = walkExperienceService.getAll(userId, null, null, null);
+        List<WalkExperienceListResponse> result = walkExperienceService.getAll(
+                userId,
+                demoSessionId,
+                null,
+                null,
+                null
+        );
 
         assertThat(result).extracting(WalkExperienceListResponse::experienceId)
                 .containsExactly(firstId, secondId);
         WalkExperienceListResponse response = result.getFirst();
         assertThat(response.photoUrl()).isEqualTo("https://example.com/photo.jpg");
-        assertThat(response.title()).isEqualTo("제목");
+        assertThat(response.title()).isEqualTo("title");
         assertThat(response.startedAt()).isEqualTo(OffsetDateTime.parse("2026-08-11T13:00:00+09:00"));
         assertThat(response.durationSeconds()).isEqualTo(3600);
-        assertThat(response.locationSummary()).isEqualTo("망원동");
+        assertThat(response.locationSummary()).isEqualTo("location");
         assertThat(response.companion()).isEqualTo(Companion.ALONE);
         assertThat(response.emotions()).containsExactly(Emotion.CALM, Emotion.PENSIVE);
         assertThat(response.situation()).isEqualTo(Situation.AFTERNOON);
-        assertThat(response.tags()).containsExactly("두번째", "첫번째");
+        assertThat(response.tags()).containsExactly("second", "first");
         assertThat(result.get(1).emotions()).isEmpty();
         assertThat(result.get(1).tags()).isEmpty();
     }
 
     private void assertInvalidRequest(LocalDate from, LocalDate to, String tag) {
-        assertThatThrownBy(() -> walkExperienceService.getAll(userId, from, to, tag))
+        assertThatThrownBy(() -> walkExperienceService.getAll(userId, demoSessionId, from, to, tag))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
         verifyNoInteractions(walkExperienceRepository);
@@ -141,10 +166,10 @@ class WalkExperienceListServiceTest {
         WalkExperience experience = mock(WalkExperience.class);
         when(experience.getId()).thenReturn(id);
         when(experience.getPhotoUrl()).thenReturn("https://example.com/photo.jpg");
-        when(experience.getTitle()).thenReturn("제목");
+        when(experience.getTitle()).thenReturn("title");
         when(experience.getStartedAt()).thenReturn(OffsetDateTime.parse("2026-08-11T13:00:00+09:00"));
         when(experience.getDurationSeconds()).thenReturn(3600);
-        when(experience.getLocationSummary()).thenReturn("망원동");
+        when(experience.getLocationSummary()).thenReturn("location");
         when(experience.getCompanion()).thenReturn(Companion.ALONE);
         when(experience.getEmotions()).thenReturn(emotions);
         when(experience.getSituation()).thenReturn(Situation.AFTERNOON);
