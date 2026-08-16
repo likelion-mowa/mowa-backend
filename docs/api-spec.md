@@ -13,7 +13,7 @@
 | 사용자 인증 | Access Token 기반 인증 |
 | API 필드 표기 | JSON 필드는 camelCase 사용 |
 
-MVP에서는 로그인 기반 사용자별 데이터 분리를 적용합니다.
+MVP에서는 로그인 기반 사용자별 데이터 분리와 로그인 세션별 데모 데이터 분리를 적용합니다.
 
 회원가입은 MVP에서 제외하고 사전 생성된 테스트 계정을 사용합니다.
 
@@ -27,11 +27,16 @@ MVP에서는 로그인 기반 사용자별 데이터 분리를 적용합니다.
 Authorization: Bearer {accessToken}
 ```
 
-- `userId` 또는 `user_id`는 클라이언트 Request에서 전달받지 않습니다.
-- 서버가 Access Token을 통해 로그인 사용자를 식별합니다.
-- `walk_candidates`, `experience_drafts`, `walk_experiences`의 `user_id`는 서버가 로그인 사용자를 기준으로 설정합니다.
-- 인증된 사용자는 자신의 데이터만 조회·수정·삭제할 수 있습니다.
-- 다른 사용자가 소유한 `candidateId`, `draftId`, `experienceId`에 접근한 경우 일반 사용자에게 리소스 존재 여부를 노출하지 않고 `404 Not Found`로 처리합니다.
+- 로그인 성공 시 서버가 새로운 UUID `demoSessionId`를 생성합니다.
+- `demoSessionId`는 Access Token의 `demoSessionId` claim으로 포함합니다.
+- 인증된 요청에서 서버는 인증 컨텍스트의 `userId + demoSessionId`를 사용합니다.
+- `userId`, `user_id`, `demoSessionId`, `demo_session_id`는 클라이언트 Request Body 또는 Query Parameter에서 전달받지 않습니다.
+- 서버가 Access Token을 통해 로그인 사용자와 데모 세션을 식별합니다.
+- `walk_candidates`, `experience_drafts`, `walk_experiences`의 `user_id`와 `demo_session_id`는 서버가 인증 정보를 기준으로 설정합니다.
+- 인증된 사용자는 현재 `userId + demoSessionId`에 속한 데이터만 조회·수정·삭제할 수 있습니다.
+- 동일한 테스트 계정으로 여러 사용자가 로그인해도 각 로그인 세션의 데이터는 서로 분리됩니다.
+- 다른 사용자 또는 다른 `demoSessionId`가 소유한 `candidateId`, `draftId`, `experienceId`에 접근한 경우 일반 사용자에게 리소스 존재 여부를 노출하지 않고 `404 Not Found`로 처리합니다.
+- Candidate → Draft → Experience는 동일한 `userId`와 동일한 `demoSessionId`를 유지합니다.
 - Access Token이 없거나 유효하지 않은 경우 `401 Unauthorized`로 처리합니다.
 
 ---
@@ -145,7 +150,7 @@ Authorization: Bearer {accessToken}
 ### 처리 정책
 
 - 생성 시 기본 상태는 `DETECTED`입니다.
-- `user_id`는 Request에서 받지 않고 Access Token 기준으로 서버가 설정합니다.
+- `user_id`와 `demo_session_id`는 Request에서 받지 않고 Access Token 기준으로 서버가 설정합니다.
 
 ---
 
@@ -171,7 +176,7 @@ status
 ### 주요 예외
 
 - 존재하지 않는 Candidate
-- 다른 사용자가 소유한 Candidate
+- 다른 사용자 또는 다른 `demoSessionId`가 소유한 Candidate
 
 ---
 
@@ -276,6 +281,7 @@ aiGenerationStatus
 - 사용자가 입력하지 않은 값은 서버가 임의로 생성하지 않습니다.
 - 생성 시 `aiGenerationStatus = PENDING`입니다.
 - `user_id`는 Access Token 기준으로 서버가 설정합니다.
+- `demo_session_id`는 연결된 Candidate의 `demo_session_id`를 유지합니다.
 
 ---
 
@@ -341,21 +347,25 @@ null 전달
 ```
 클라이언트
    ↓
-Object Storage에 사진 업로드
+Cloudinary unsigned upload
    ↓
-photoUrl 획득
+HTTPS `secure_url` 획득
    ↓
 Draft 생성/수정 API에 photoUrl 전달
 ```
 
 ### 처리 정책
 
-- 사진 파일은 Object Storage에 저장합니다.
-- DB에는 `photoUrl`만 저장합니다.
+- 이미지 바이너리는 Spring Boot로 업로드하지 않습니다.
+- 별도 Backend 이미지 업로드 API를 만들지 않습니다.
+- 사진 파일은 Cloudinary에 저장합니다.
+- Backend와 DB에는 Cloudinary HTTPS URL인 `photoUrl`만 저장합니다.
+- 대표 사진은 최대 1장입니다.
 - 사진 없이 기록할 수 있습니다.
 - 기존 사진 제거 시 `photoUrl: null`을 사용합니다.
 - PATCH에서 `photoUrl`을 생략하면 기존 사진을 유지합니다.
-- 사진 파일 자동 삭제·정리는 MVP에서 구현하지 않습니다.
+- Experience Soft Delete 시 Cloudinary Asset은 자동 삭제하지 않습니다.
+- 사진 파일 자동 정리는 MVP에서 구현하지 않습니다.
 
 ---
 
@@ -554,7 +564,7 @@ createdAt
 ## 주요 예외
 
 - 존재하지 않는 Draft
-- 다른 사용자가 소유한 Draft
+- 다른 사용자 또는 다른 `demoSessionId`가 소유한 Draft
 - Draft 상태가 `SUCCESS`가 아님
 - 연결된 Candidate 없음
 - Candidate의 종료 시각 누락
@@ -587,6 +597,7 @@ createdAt
 - 일반 조회 시 Draft나 Candidate에 의존하지 않습니다.
 - 최종 Experience 생성 후 Draft는 삭제하지 않습니다.
 - `user_id`는 Access Token 기준으로 서버가 설정합니다.
+- `demo_session_id`는 연결된 Draft의 `demo_session_id`를 유지합니다.
 
 사용자가 최종 확인 화면에서 취소할 경우 이 API를 호출하지 않습니다.
 
@@ -713,7 +724,7 @@ tags[]
 
 ## 조회 정책
 
-- 로그인한 사용자의 데이터만 조회합니다.
+- 로그인한 사용자의 현재 `userId + demoSessionId` 데이터만 조회합니다.
 - `walk_experiences`, `walk_experience_emotions`, `walk_experience_tags`를 사용합니다.
 - Draft와 Candidate를 JOIN하지 않습니다.
 - `deletedAt IS NULL`인 Experience만 반환합니다.
@@ -751,7 +762,7 @@ tags[]
 - WalkExperience의 Snapshot 데이터와 감정·태그 연결 테이블을 사용합니다.
 - Draft와 Candidate를 JOIN하지 않습니다.
 - Soft Delete된 Experience는 조회하지 않습니다.
-- 존재하지 않거나 삭제되었거나 다른 사용자가 소유한 Experience는 `404 Not Found`로 처리합니다.
+- 존재하지 않거나 삭제되었거나 다른 사용자 또는 다른 `demoSessionId`가 소유한 Experience는 `404 Not Found`로 처리합니다.
 
 ---
 
@@ -847,7 +858,7 @@ locationSummary
 
 - 존재하지 않는 Experience
 - Soft Delete된 Experience
-- 다른 사용자가 소유한 Experience
+- 다른 사용자 또는 다른 `demoSessionId`가 소유한 Experience
 - 빈 title
 - title 100자 초과
 - 허용되지 않은 Companion / Emotion / Situation
@@ -872,7 +883,7 @@ deletedAt = 현재 시각
 - 삭제된 Experience는 목록·상세·수정 대상에서 제외합니다.
 - 이미 삭제된 Experience의 상세·수정·재삭제 요청은 `404 Not Found`입니다.
 - 복구 API는 MVP에서 제공하지 않습니다.
-- Soft Delete 시 Object Storage 사진 파일은 자동 삭제하지 않습니다.
+- Soft Delete 시 Cloudinary 사진 파일은 자동 삭제하지 않습니다.
 
 ---
 
@@ -992,7 +1003,7 @@ walk_experiences
 
 ## 별도 API 없음
 
-OS 사진 라이브러리에서 선택한 사진을 Object Storage에 업로드한 뒤 `photoUrl`을 Draft API로 전달합니다.
+OS 사진 라이브러리에서 선택한 사진을 Cloudinary에 unsigned upload한 뒤 획득한 HTTPS `secure_url`을 `photoUrl`로 Draft API에 전달합니다.
 
 사진 없이 진행하거나 기존 사진을 제거하는 정책은 기능 3과 동일합니다.
 
@@ -1058,7 +1069,7 @@ GET /walk-experiences?tag=망원동
 ### 인덱스
 
 ```
-walk_experiences(user_id, started_at)
+walk_experiences(user_id, demo_session_id, started_at)
 ```
 
 복합 인덱스를 MVP 우선 인덱스로 사용합니다.
@@ -1103,6 +1114,10 @@ walk_experiences(user_id, started_at)
   }
 }
 ```
+
+로그인 성공 시 서버는 새로운 UUID `demoSessionId`를 생성하고 Access Token의 `demoSessionId` claim에 포함합니다.
+
+`demoSessionId`는 별도 Response 필드로 반환하지 않습니다.
 
 ### 주요 예외
 
@@ -1264,9 +1279,10 @@ tag VARCHAR(50) NOT NULL
 - 최종 `title`은 필수이며 최대 100자입니다.
 - `body`는 선택이며 NULL을 허용합니다.
 - Candidate의 시간·장소와 사용자 최종 확인값을 Snapshot으로 저장합니다.
-- 사진 파일은 Object Storage에 저장하고 DB에는 URL만 저장합니다.
-- 인증 API를 제외한 주요 리소스 API는 로그인 사용자의 데이터만 처리합니다.
-- `user_id`는 Request에서 전달받지 않습니다.
+- 사진 파일은 Cloudinary에 저장하고 DB에는 HTTPS URL만 저장합니다.
+- 인증 API를 제외한 주요 리소스 API는 로그인 사용자의 현재 `userId + demoSessionId` 데이터만 처리합니다.
+- `user_id`와 `demo_session_id`는 Request에서 전달받지 않습니다.
+- Candidate → Draft → Experience는 동일한 `user_id`와 동일한 `demo_session_id`를 유지합니다.
 - 감정은 연결 테이블을 이용하여 다중 값으로 관리합니다.
 - 태그는 연결 테이블을 이용하여 다중 값으로 관리합니다.
 - PATCH의 `emotions[]`, `tags[]`는 전체 교체 방식입니다.
@@ -1282,8 +1298,8 @@ tag VARCHAR(50) NOT NULL
 | 회원가입 | 제외 |
 | 로그아웃 | 클라이언트 Access Token 삭제 |
 | 마이페이지 | 정보 조회 + 닉네임 수정 |
-| 사용자 데이터 | 로그인 사용자별 분리 |
-| 사진 | Object Storage 직접 업로드 |
+| 사용자 데이터 | 로그인 사용자 + demoSessionId별 분리 |
+| 사진 | Cloudinary unsigned upload 후 URL 저장 |
 | 제목 | 필수, 최대 100자 |
 | 본문 | 선택 |
 | 삭제 | Soft Delete |
@@ -1316,7 +1332,7 @@ tag VARCHAR(50) NOT NULL
 | 항목 | 설명 |
 | --- | --- |
 | OpenAI 모델 | 실제 일기·태그 추천에 사용할 모델 |
-| Object Storage | S3, Supabase Storage 등 |
+| Cloudinary 공개 설정 | unsigned upload에 필요한 공개 설정 |
 | Candidate 감지 임계값 | 최소 걷기 시간, 종료 판단 기준 |
 | Android 플러그인 | 실제 위치·활동 감지에 사용할 Expo/Native 모듈 |
 
