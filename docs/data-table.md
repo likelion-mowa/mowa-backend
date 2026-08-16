@@ -23,6 +23,8 @@
 
 MVP에서는 총 **7개 테이블**을 사용합니다.
 
+`demo_session_id`는 로그인마다 발급되는 논리적 데모 데이터 격리 식별자이며, 별도 Session 테이블 FK로 관리하지 않습니다.
+
 ---
 
 # 1. 산책 후보 감지 및 기록 제안
@@ -37,6 +39,7 @@ MVP에서는 총 **7개 테이블**을 사용합니다.
 | --- | --- | --- | --- |
 | `id` | UUID | PK, DEFAULT `gen_random_uuid()` | 산책 후보 고유 ID |
 | `user_id` | UUID | FK, NOT NULL | 산책 후보 소유 사용자 ID, `users(id)` 참조 |
+| `demo_session_id` | UUID | NOT NULL | 로그인 세션별 데모 데이터 격리 ID |
 | `detected_start_at` | TIMESTAMPTZ | NOT NULL | 걷기 시작 추정 시각 |
 | `detected_end_at` | TIMESTAMPTZ | NULL 허용 | 걷기 종료 추정 시각 |
 | `duration_seconds` | INT | NULL 허용 | 걷기 지속 시간(초) |
@@ -65,8 +68,8 @@ MVP에서는 총 **7개 테이블**을 사용합니다.
 
 ## 비고
 
-- `user_id`를 통해 Candidate 소유 사용자를 구분합니다.
-- `user_id`는 클라이언트가 직접 전달하지 않고 Access Token으로 식별한 사용자를 서버가 설정합니다.
+- `user_id + demo_session_id`를 통해 Candidate 소유 사용자와 데모 세션을 구분합니다.
+- `user_id`와 `demo_session_id`는 클라이언트가 직접 전달하지 않고 Access Token으로 식별한 값을 서버가 설정합니다.
 - `detected_end_at`, `duration_seconds`는 걷기 종료 전에는 NULL일 수 있습니다.
 - 위치 좌표 및 위치 정밀도는 MVP에서 저장하지 않습니다.
 - 이동 경로도 MVP에서 저장하지 않습니다.
@@ -112,10 +115,10 @@ MVP에서는 총 **7개 테이블**을 사용합니다.
 
 - 사진은 선택값이며 사진 없이 기록할 수 있습니다.
 - 직접 촬영과 최근 사진 선택 모두 동일한 `photo_url` 컬럼을 사용합니다.
-- 사진 파일 자체는 Object Storage에 저장합니다.
-- DB에는 사진 파일이 아니라 URL만 저장합니다.
+- 사진 파일 자체는 Cloudinary에 저장합니다.
+- DB에는 사진 파일이 아니라 Cloudinary HTTPS URL만 저장합니다.
 - 대표 사진은 최대 1장이므로 별도의 사진 테이블은 생성하지 않습니다.
-- Soft Delete 시 Object Storage의 사진 파일을 자동 삭제하지 않습니다.
+- Soft Delete 시 Cloudinary의 사진 파일을 자동 삭제하지 않습니다.
 - 사진 파일 정리 기능은 MVP에서 제외합니다.
 
 ---
@@ -132,6 +135,7 @@ MVP에서는 총 **7개 테이블**을 사용합니다.
 | --- | --- | --- | --- |
 | `id` | UUID | PK, DEFAULT `gen_random_uuid()` | 경험 초안 고유 ID |
 | `user_id` | UUID | FK, NOT NULL | 경험 초안 소유 사용자 ID, `users(id)` 참조 |
+| `demo_session_id` | UUID | NOT NULL | 로그인 세션별 데모 데이터 격리 ID |
 | `candidate_id` | UUID | FK, UNIQUE, NOT NULL | 출처 Candidate ID, `walk_candidates(id)` 참조 |
 | `photo_url` | TEXT | NULL 허용 | 대표 사진 URL |
 | `companion` | VARCHAR(30) | NULL 허용 | 사용자가 선택한 동반자 |
@@ -204,8 +208,10 @@ MVP에서는 총 **7개 테이블**을 사용합니다.
 ## 비고
 
 - `user_id`는 Access Token을 통해 식별한 사용자로 서버가 설정합니다.
+- `demo_session_id`는 연결된 `walk_candidates.demo_session_id`를 유지합니다.
 - `experience_drafts.user_id`는 연결된 `walk_candidates.user_id`와 반드시 동일해야 합니다.
-- 위 소유권 일치는 서비스 레이어에서 검증합니다.
+- `experience_drafts.demo_session_id`는 연결된 `walk_candidates.demo_session_id`와 반드시 동일해야 합니다.
+- 위 소유권 및 세션 일치는 서비스 레이어에서 검증합니다.
 - `companion`, `situation`은 선택값이므로 NULL을 허용합니다.
 - 감정은 `experience_draft_emotions`에서 다중 값으로 관리합니다.
 - API와 애플리케이션에서는 영문 코드값을 사용하고 화면에서는 한글 값을 표시합니다.
@@ -235,6 +241,7 @@ AI 생성 결과를 사용자가 확인·수정한 뒤 최종 산책 경험을 S
 | --- | --- | --- | --- |
 | `id` | UUID | PK, DEFAULT `gen_random_uuid()` | 산책 경험 고유 ID |
 | `user_id` | UUID | FK, NOT NULL | 산책 경험 소유 사용자 ID, `users(id)` 참조 |
+| `demo_session_id` | UUID | NOT NULL | 로그인 세션별 데모 데이터 격리 ID |
 | `draft_id` | UUID | FK, UNIQUE, NOT NULL | 출처 Draft ID, `experience_drafts(id)` 참조 |
 | `title` | VARCHAR(100) | NOT NULL | 사용자가 최종 확인·수정한 제목 |
 | `body` | TEXT | NULL 허용 | 사용자가 최종 확인·수정한 본문 |
@@ -283,8 +290,10 @@ AI 생성 결과를 사용자가 확인·수정한 뒤 최종 산책 경험을 S
 
 - `draft_id`는 생성 출처와 데이터 정합성을 보장하기 위한 FK입니다.
 - `user_id`는 Access Token 기준으로 서버가 설정합니다.
+- `demo_session_id`는 연결된 `experience_drafts.demo_session_id`를 유지합니다.
 - `walk_experiences.user_id`는 연결된 `experience_drafts.user_id`와 반드시 동일해야 합니다.
-- 위 소유권 일치는 서비스 레이어에서 검증합니다.
+- `walk_experiences.demo_session_id`는 연결된 `experience_drafts.demo_session_id`와 반드시 동일해야 합니다.
+- 위 소유권 및 세션 일치는 서비스 레이어에서 검증합니다.
 - 하나의 Draft에서는 최대 하나의 WalkExperience만 생성합니다.
 - 동시 요청이 발생하더라도 `UNIQUE(draft_id)`가 최종 중복 방지 장치가 됩니다.
 - Soft Delete된 WalkExperience도 DB에 남으므로 동일 Draft로 새로운 WalkExperience를 생성할 수 없습니다.
@@ -328,7 +337,7 @@ AI 생성 결과를 사용자가 확인·수정한 뒤 최종 산책 경험을 S
 
 ## 조회 정책
 
-- 로그인 사용자의 데이터만 조회합니다.
+- 로그인 사용자의 현재 `user_id + demo_session_id` 데이터만 조회합니다.
 - `deleted_at IS NULL`인 Experience만 반환합니다.
 - 기본 정렬은 `started_at DESC`입니다.
 - 년·월·일 정보는 별도 컬럼으로 저장하지 않습니다.
@@ -339,8 +348,9 @@ AI 생성 결과를 사용자가 확인·수정한 뒤 최종 산책 경험을 S
 
 ## 권장 인덱스
 
-```
-walk_experiences(user_id, started_at)
+```sql
+CREATE INDEX idx_walk_experiences_user_demo_session_started_at
+ON walk_experiences (user_id, demo_session_id, started_at);
 ```
 
 사용자별 날짜순 조회 및 캘린더 조회를 위한 MVP 우선 인덱스입니다.
@@ -372,7 +382,7 @@ walk_experiences(user_id, started_at)
 - 상세 조회는 `walk_experiences` Snapshot과 감정·태그 연결 테이블만 사용합니다.
 - `experience_drafts`, `walk_candidates`를 JOIN하지 않습니다.
 - `deleted_at`이 존재하는 Experience는 일반 상세 조회 대상에서 제외합니다.
-- 다른 사용자가 소유한 Experience도 일반 사용자에게는 조회되지 않습니다.
+- 다른 사용자 또는 다른 `demo_session_id`가 소유한 Experience도 일반 사용자에게는 조회되지 않습니다.
 
 ---
 
@@ -474,7 +484,7 @@ experience_drafts
 walk_experiences
 ```
 
-## 사용자 소유권 정합성
+## 사용자 소유권 및 세션 정합성
 
 ```
 walk_candidates.user_id
@@ -484,15 +494,23 @@ experience_drafts.user_id
 walk_experiences.user_id
 ```
 
-- Draft를 생성할 때 로그인 사용자와 Candidate 소유 사용자가 동일한지 검증합니다.
-- WalkExperience를 생성할 때 로그인 사용자와 Draft 소유 사용자가 동일한지 검증합니다.
-- `user_id`는 클라이언트 Request에서 전달받지 않습니다.
-- Access Token에서 식별한 사용자를 서버가 설정합니다.
+```
+walk_candidates.demo_session_id
+        =
+experience_drafts.demo_session_id
+        =
+walk_experiences.demo_session_id
+```
+
+- Draft를 생성할 때 로그인 사용자와 Candidate의 `user_id + demo_session_id`가 동일한지 검증합니다.
+- WalkExperience를 생성할 때 로그인 사용자와 Draft/Candidate의 `user_id + demo_session_id`가 동일한지 검증합니다.
+- `user_id`와 `demo_session_id`는 클라이언트 Request에서 전달받지 않습니다.
+- Access Token에서 식별한 사용자와 데모 세션을 서버가 설정합니다.
 
 ## 비고
 
 - Candidate → Draft와 Draft → WalkExperience 관계를 DB 제약조건으로 보장합니다.
-- 사용자 소유권 연결의 일관성은 서비스 레이어에서도 검증합니다.
+- 사용자 소유권 및 세션 연결의 일관성은 서비스 레이어에서도 검증합니다.
 - `walk_experiences`는 Draft를 FK로 참조하지만 일반 사용자 조회는 Snapshot 데이터를 사용합니다.
 - Soft Delete된 WalkExperience도 유지되므로 `UNIQUE(draft_id)`가 동일 Draft 재확정을 막습니다.
 - 최종 WalkExperience와 연결된 Draft는 MVP에서 보존합니다.
@@ -503,7 +521,7 @@ walk_experiences.user_id
 
 별도의 테이블이나 컬럼을 추가하지 않습니다.
 
-OS 사진 라이브러리에서 사용자가 사진을 선택하고 Object Storage에 업로드한 뒤 획득한 URL을 `experience_drafts.photo_url`에 저장합니다.
+OS 사진 라이브러리에서 사용자가 사진을 선택하고 Cloudinary에 unsigned upload한 뒤 획득한 HTTPS URL을 `experience_drafts.photo_url`에 저장합니다.
 
 사진 정책은 기능 3과 동일합니다.
 
@@ -545,8 +563,9 @@ OS 사진 라이브러리에서 사용자가 사진을 선택하고 Object Stora
 
 ## 인덱스
 
-```
-walk_experiences(user_id, started_at)
+```sql
+CREATE INDEX idx_walk_experiences_user_demo_session_started_at
+ON walk_experiences (user_id, demo_session_id, started_at);
 ```
 
 사용자별 캘린더 및 날짜순 조회를 위한 MVP 우선 인덱스로 사용합니다.
@@ -720,9 +739,10 @@ DB:
 | 마이페이지 | 사용자 정보 조회, 닉네임 수정, 로그아웃 |
 | nickname | 최대 30자, 중복 허용 |
 | 로그인 ID | `VARCHAR(50)`, UNIQUE |
-| 사용자 데이터 | 로그인 사용자별 분리 |
+| 사용자 데이터 | 로그인 사용자 + demoSessionId별 분리 |
 | `user_id` | Access Token 기준으로 서버가 설정 |
-| 사진 저장 | Object Storage에 파일 저장, DB에는 URL만 저장 |
+| `demo_session_id` | Access Token의 `demoSessionId` 기준으로 서버가 설정, 별도 Session FK 아님 |
+| 사진 저장 | Cloudinary에 파일 저장, DB에는 HTTPS URL만 저장 |
 | 제목 | `walk_experiences.title` NOT NULL, 최대 100자 |
 | 본문 | NULL 허용 |
 | 감정 | 다중 선택, 연결 테이블 + 복합 PK |
@@ -819,6 +839,6 @@ walk_candidates
 
 `walk_experiences`는 `draft_id`를 보유하지만 아카이브·상세·캘린더·태그 조회에 필요한 데이터는 Snapshot으로 자체 보존하므로 일반 조회 시 Draft나 Candidate에 의존하지 않습니다.
 
-MVP에서는 로그인 기반 사용자별 데이터 분리를 적용하며 `walk_candidates`, `experience_drafts`, `walk_experiences`는 각각 `user_id`로 소유 사용자를 구분합니다.
+MVP에서는 로그인 기반 사용자별 데이터 분리와 로그인 세션별 데모 데이터 분리를 적용하며 `walk_candidates`, `experience_drafts`, `walk_experiences`는 각각 `user_id + demo_session_id`로 소유 데이터 영역을 구분합니다.
 
 산책 경험 삭제는 `deleted_at`을 이용한 Soft Delete로 처리합니다.
