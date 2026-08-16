@@ -29,6 +29,7 @@ class WalkExperienceDetailServiceTest {
     private WalkExperienceRepository walkExperienceRepository;
     private WalkExperienceService walkExperienceService;
     private UUID userId;
+    private UUID demoSessionId;
     private UUID experienceId;
 
     @BeforeEach
@@ -39,6 +40,7 @@ class WalkExperienceDetailServiceTest {
                 walkExperienceRepository
         );
         userId = UUID.randomUUID();
+        demoSessionId = UUID.randomUUID();
         experienceId = UUID.randomUUID();
     }
 
@@ -49,12 +51,16 @@ class WalkExperienceDetailServiceTest {
                 "두번째",
                 "첫번째"
         );
-        when(walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId))
+        when(walkExperienceRepository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
                 .thenReturn(Optional.of(experience));
 
-        WalkExperienceDetailResponse response = walkExperienceService.get(userId, experienceId);
+        WalkExperienceDetailResponse response = walkExperienceService.get(userId, demoSessionId, experienceId);
 
-        verify(walkExperienceRepository).findActiveByIdAndUserId(experienceId, userId);
+        verify(walkExperienceRepository).findActiveByIdAndUserIdAndDemoSessionId(
+                experienceId,
+                userId,
+                demoSessionId
+        );
         assertThat(response.experienceId()).isEqualTo(experienceId);
         assertThat(response.title()).isEqualTo("제목");
         assertThat(response.body()).isEqualTo("본문");
@@ -87,10 +93,10 @@ class WalkExperienceDetailServiceTest {
     @Test
     void returnsEmptyEmotionAndTagArrays() {
         WalkExperience experience = detailExperience(Set.of());
-        when(walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId))
+        when(walkExperienceRepository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
                 .thenReturn(Optional.of(experience));
 
-        WalkExperienceDetailResponse response = walkExperienceService.get(userId, experienceId);
+        WalkExperienceDetailResponse response = walkExperienceService.get(userId, demoSessionId, experienceId);
 
         assertThat(response.emotions()).isEmpty();
         assertThat(response.tags()).isEmpty();
@@ -118,10 +124,10 @@ class WalkExperienceDetailServiceTest {
     }
 
     private void assertNotFoundForEmptyRepositoryResult() {
-        when(walkExperienceRepository.findActiveByIdAndUserId(experienceId, userId))
+        when(walkExperienceRepository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> walkExperienceService.get(userId, experienceId))
+        assertThatThrownBy(() -> walkExperienceService.get(userId, demoSessionId, experienceId))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
     }

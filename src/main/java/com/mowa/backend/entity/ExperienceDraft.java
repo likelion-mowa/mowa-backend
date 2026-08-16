@@ -32,6 +32,9 @@ public class ExperienceDraft extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(name = "demo_session_id", nullable = false)
+    private UUID demoSessionId;
+
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "candidate_id", nullable = false, unique = true)
     private WalkCandidate candidate;
@@ -79,6 +82,7 @@ public class ExperienceDraft extends BaseEntity {
     ) {
         ExperienceDraft draft = new ExperienceDraft();
         draft.user = user;
+        draft.demoSessionId = candidate.getDemoSessionId();
         draft.candidate = candidate;
         draft.photoUrl = photoUrl;
         draft.companion = companion;
@@ -127,6 +131,10 @@ public class ExperienceDraft extends BaseEntity {
 
     public User getUser() {
         return user;
+    }
+
+    public UUID getDemoSessionId() {
+        return demoSessionId;
     }
 
     public WalkCandidate getCandidate() {

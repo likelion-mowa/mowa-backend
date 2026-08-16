@@ -25,8 +25,8 @@ import java.util.UUID;
 @Table(
         name = "walk_experiences",
         indexes = @Index(
-                name = "idx_walk_experiences_user_started_at",
-                columnList = "user_id, started_at"
+                name = "idx_walk_experiences_user_demo_session_started_at",
+                columnList = "user_id, demo_session_id, started_at"
         )
 )
 public class WalkExperience extends BaseEntity {
@@ -39,6 +39,9 @@ public class WalkExperience extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @Column(name = "demo_session_id", nullable = false)
+    private UUID demoSessionId;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "draft_id", nullable = false, unique = true)
@@ -110,6 +113,7 @@ public class WalkExperience extends BaseEntity {
     ) {
         WalkExperience experience = new WalkExperience();
         experience.user = user;
+        experience.demoSessionId = draft.getDemoSessionId();
         experience.draft = draft;
         experience.title = title;
         experience.body = body;
@@ -169,6 +173,10 @@ public class WalkExperience extends BaseEntity {
 
     public User getUser() {
         return user;
+    }
+
+    public UUID getDemoSessionId() {
+        return demoSessionId;
     }
 
     public ExperienceDraft getDraft() {

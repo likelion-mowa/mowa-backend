@@ -46,8 +46,13 @@ public class ExperienceDraftService {
     }
 
     @Transactional
-    public ExperienceDraftResponse create(UUID userId, UUID candidateId, CreateExperienceDraftRequest request) {
-        WalkCandidate candidate = findCandidate(userId, candidateId);
+    public ExperienceDraftResponse create(
+            UUID userId,
+            UUID demoSessionId,
+            UUID candidateId,
+            CreateExperienceDraftRequest request
+    ) {
+        WalkCandidate candidate = findCandidate(userId, demoSessionId, candidateId);
 
         if (candidate.getStatus() != CandidateStatus.RECORDING) {
             throw new BusinessException(ErrorCode.CONFLICT, "Candidate status must be RECORDING.");
@@ -74,8 +79,13 @@ public class ExperienceDraftService {
     }
 
     @Transactional
-    public ExperienceDraftResponse update(UUID userId, UUID draftId, UpdateExperienceDraftRequest request) {
-        ExperienceDraft draft = findDraft(userId, draftId);
+    public ExperienceDraftResponse update(
+            UUID userId,
+            UUID demoSessionId,
+            UUID draftId,
+            UpdateExperienceDraftRequest request
+    ) {
+        ExperienceDraft draft = findDraft(userId, demoSessionId, draftId);
         validateUpdatableStatus(draft.getAiGenerationStatus());
 
         if (request.hasPhotoUrl()) {
@@ -97,28 +107,31 @@ public class ExperienceDraftService {
         return ExperienceDraftResponse.from(draft);
     }
 
-    public ExperienceDraftAiGenerationResponse generateAi(UUID userId, UUID draftId) {
-        ExperienceDraftAiGenerationInput input = aiGenerationTransactionService.startGeneration(userId, draftId);
+    public ExperienceDraftAiGenerationResponse generateAi(UUID userId, UUID demoSessionId, UUID draftId) {
+        ExperienceDraftAiGenerationInput input =
+                aiGenerationTransactionService.startGeneration(userId, demoSessionId, draftId);
 
         ExperienceDraftAiGenerationResult result;
         try {
             result = experienceDraftAiClient.generate(input);
         } catch (RuntimeException exception) {
-            aiGenerationTransactionService.failGeneration(userId, draftId);
+            aiGenerationTransactionService.failGeneration(userId, demoSessionId, draftId);
             log.warn("AI generation failed for draftId={}", draftId, exception);
             throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "AI generation failed.");
         }
 
-        return aiGenerationTransactionService.completeGeneration(userId, draftId, result);
+        return aiGenerationTransactionService.completeGeneration(userId, demoSessionId, draftId, result);
     }
 
-    private WalkCandidate findCandidate(UUID userId, UUID candidateId) {
-        return walkCandidateRepository.findByIdAndUser_Id(candidateId, userId)
+    private WalkCandidate findCandidate(UUID userId, UUID demoSessionId, UUID candidateId) {
+        return walkCandidateRepository
+                .findByIdAndUser_IdAndDemoSessionId(candidateId, userId, demoSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
-    private ExperienceDraft findDraft(UUID userId, UUID draftId) {
-        return experienceDraftRepository.findByIdAndUser_Id(draftId, userId)
+    private ExperienceDraft findDraft(UUID userId, UUID demoSessionId, UUID draftId) {
+        return experienceDraftRepository
+                .findByIdAndUser_IdAndDemoSessionId(draftId, userId, demoSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 

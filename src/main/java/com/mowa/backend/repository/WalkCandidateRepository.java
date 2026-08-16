@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface WalkCandidateRepository extends JpaRepository<WalkCandidate, UUID> {
 
-    Optional<WalkCandidate> findByIdAndUser_Id(UUID id, UUID userId);
+    Optional<WalkCandidate> findByIdAndUser_IdAndDemoSessionId(UUID id, UUID userId, UUID demoSessionId);
 }

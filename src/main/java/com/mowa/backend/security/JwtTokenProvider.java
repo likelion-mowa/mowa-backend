@@ -18,6 +18,8 @@ import org.springframework.stereotype.Component;
 @EnableConfigurationProperties(JwtProperties.class)
 public class JwtTokenProvider {
 
+    private static final String DEMO_SESSION_ID_CLAIM = "demoSessionId";
+
     private final JwtProperties jwtProperties;
     private final Clock clock;
 
@@ -31,19 +33,20 @@ public class JwtTokenProvider {
         this.clock = clock;
     }
 
-    public String createAccessToken(UUID userId) {
+    public String createAccessToken(UUID userId, UUID demoSessionId) {
         Instant issuedAt = Instant.now(clock);
         Instant expiration = issuedAt.plusMillis(getAccessTokenExpirationMs());
 
         return Jwts.builder()
                 .subject(userId.toString())
+                .claim(DEMO_SESSION_ID_CLAIM, demoSessionId.toString())
                 .issuedAt(Date.from(issuedAt))
                 .expiration(Date.from(expiration))
                 .signWith(getSigningKey())
                 .compact();
     }
 
-    public UUID getUserId(String token) {
+    public AuthenticatedUser getAuthenticatedUser(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(getSigningKey())
                 .build()
@@ -54,12 +57,18 @@ public class JwtTokenProvider {
         if (subject == null || subject.isBlank()) {
             throw new IllegalArgumentException("JWT subject is empty.");
         }
-        return UUID.fromString(subject);
+
+        String demoSessionId = claims.get(DEMO_SESSION_ID_CLAIM, String.class);
+        if (demoSessionId == null || demoSessionId.isBlank()) {
+            throw new IllegalArgumentException("JWT demoSessionId claim is empty.");
+        }
+
+        return new AuthenticatedUser(UUID.fromString(subject), UUID.fromString(demoSessionId));
     }
 
     public boolean isValid(String token) {
         try {
-            getUserId(token);
+            getAuthenticatedUser(token);
             return true;
         } catch (JwtException | IllegalArgumentException exception) {
             return false;

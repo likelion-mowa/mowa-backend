@@ -31,10 +31,15 @@ public class WalkCandidateService {
     }
 
     @Transactional
-    public CreateWalkCandidateResponse create(UUID userId, CreateWalkCandidateRequest request) {
+    public CreateWalkCandidateResponse create(
+            UUID userId,
+            UUID demoSessionId,
+            CreateWalkCandidateRequest request
+    ) {
         User user = findUser(userId);
         WalkCandidate candidate = WalkCandidate.create(
                 user,
+                demoSessionId,
                 request.detectedStartAt(),
                 request.locationSummary()
         );
@@ -43,13 +48,18 @@ public class WalkCandidateService {
     }
 
     @Transactional(readOnly = true)
-    public WalkCandidateResponse get(UUID userId, UUID candidateId) {
-        return WalkCandidateResponse.from(findCandidate(userId, candidateId));
+    public WalkCandidateResponse get(UUID userId, UUID demoSessionId, UUID candidateId) {
+        return WalkCandidateResponse.from(findCandidate(userId, demoSessionId, candidateId));
     }
 
     @Transactional
-    public WalkCandidateResponse update(UUID userId, UUID candidateId, UpdateWalkCandidateRequest request) {
-        WalkCandidate candidate = findCandidate(userId, candidateId);
+    public WalkCandidateResponse update(
+            UUID userId,
+            UUID demoSessionId,
+            UUID candidateId,
+            UpdateWalkCandidateRequest request
+    ) {
+        WalkCandidate candidate = findCandidate(userId, demoSessionId, candidateId);
 
         if (request.hasDetectedEndAt()) {
             validateDetectedEndAt(candidate.getDetectedStartAt(), request.getDetectedEndAt());
@@ -77,8 +87,9 @@ public class WalkCandidateService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
-    private WalkCandidate findCandidate(UUID userId, UUID candidateId) {
-        return walkCandidateRepository.findByIdAndUser_Id(candidateId, userId)
+    private WalkCandidate findCandidate(UUID userId, UUID demoSessionId, UUID candidateId) {
+        return walkCandidateRepository
+                .findByIdAndUser_IdAndDemoSessionId(candidateId, userId, demoSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
