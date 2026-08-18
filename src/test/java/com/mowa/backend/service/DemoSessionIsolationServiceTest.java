@@ -66,7 +66,8 @@ class DemoSessionIsolationServiceTest {
         ExperienceDraftRepository draftRepository = mock(ExperienceDraftRepository.class);
         WalkExperienceService service = new WalkExperienceService(
                 draftRepository,
-                mock(WalkExperienceRepository.class)
+                mock(WalkExperienceRepository.class),
+                mock(ExperienceDraftAiClient.class)
         );
         UUID userId = UUID.randomUUID();
         UUID sessionB = UUID.randomUUID();
@@ -86,7 +87,8 @@ class DemoSessionIsolationServiceTest {
         WalkExperienceRepository experienceRepository = mock(WalkExperienceRepository.class);
         WalkExperienceService service = new WalkExperienceService(
                 mock(ExperienceDraftRepository.class),
-                experienceRepository
+                experienceRepository,
+                mock(ExperienceDraftAiClient.class)
         );
         UUID userId = UUID.randomUUID();
         UUID sessionB = UUID.randomUUID();

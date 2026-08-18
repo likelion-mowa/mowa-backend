@@ -17,6 +17,7 @@ import com.mowa.backend.repository.WalkExperienceRepository;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.time.LocalDate;
@@ -32,13 +33,16 @@ public class WalkExperienceService {
 
     private final ExperienceDraftRepository experienceDraftRepository;
     private final WalkExperienceRepository walkExperienceRepository;
+    private final ExperienceDraftAiClient experienceDraftAiClient;
 
     public WalkExperienceService(
             ExperienceDraftRepository experienceDraftRepository,
-            WalkExperienceRepository walkExperienceRepository
+            WalkExperienceRepository walkExperienceRepository,
+            ExperienceDraftAiClient experienceDraftAiClient
     ) {
         this.experienceDraftRepository = experienceDraftRepository;
         this.walkExperienceRepository = walkExperienceRepository;
+        this.experienceDraftAiClient = experienceDraftAiClient;
     }
 
     @Transactional
@@ -126,6 +130,9 @@ public class WalkExperienceService {
                 .findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
 
+        var originalCompanion = experience.getCompanion();
+        var originalSituation = experience.getSituation();
+
         if (request.hasTitle()) {
             validateTitle(request.getTitle());
             experience.updateTitle(request.getTitle());
@@ -149,7 +156,28 @@ public class WalkExperienceService {
             experience.replaceTags(toTagSetForUpdate(request.getTags()));
         }
 
+        boolean shouldRegenerate = !Objects.equals(originalCompanion, experience.getCompanion())
+                || !Objects.equals(originalSituation, experience.getSituation());
+        if (shouldRegenerate) {
+            regenerateAiContent(experience);
+        }
+
         return WalkExperienceDetailResponse.from(experience);
+    }
+
+    private void regenerateAiContent(WalkExperience experience) {
+        try {
+            ExperienceDraftAiGenerationResult result = experienceDraftAiClient.generate(
+                    ExperienceDraftAiGenerationInput.from(experience)
+            );
+            validateTitle(result.aiTitle());
+            Set<String> tags = toTagSetForUpdate(result.suggestedTags());
+            experience.updateTitle(result.aiTitle());
+            experience.updateBody(result.aiBody());
+            experience.replaceTags(tags);
+        } catch (RuntimeException exception) {
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "AI generation failed.");
+        }
     }
 
     @Transactional
