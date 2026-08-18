@@ -841,13 +841,15 @@ tags 생략
 
 ---
 
-## companion / situation 변경 시 AI 재생성
+## companion / emotions / situation 변경 시 AI 재생성
 
 - PATCH의 모든 변경 항목을 먼저 적용한 최종 WalkExperience 상태를 AI 입력으로 사용합니다.
-- `companion` 또는 `situation`이 기존 값과 실제로 달라진 경우에만 AI를 한 번 호출합니다.
-- 두 필드가 함께 변경되어도 AI 호출은 한 번입니다.
+- `companion`, `emotions`, `situation` 중 하나라도 기존 값과 실제로 달라진 경우에만 AI를 한 번 호출합니다.
+- 여러 필드가 함께 변경되어도 AI 호출은 한 번입니다.
+- `emotions`는 순서가 아닌 실제 값으로 비교하므로, 동일한 값을 다른 순서로 전달해도 AI를 호출하지 않습니다.
+- `emotions` 필드를 생략하면 기존 값을 유지하며, 항목 추가·삭제·변경 및 empty와 non-empty 간 변경은 실제 변경으로 판단합니다.
 - 해당 필드를 생략하거나 기존과 같은 값을 전달하면 AI를 호출하지 않습니다.
-- 기존 non-null 값을 명시적 `null`로 변경하거나 `null`에서 non-null 값으로 변경하는 경우도 실제 변경으로 판단합니다.
+- `companion` 또는 `situation`을 기존 non-null 값에서 명시적 `null`로 변경하거나 `null`에서 non-null 값으로 변경하는 경우도 실제 변경으로 판단합니다.
 - AI가 생성한 `title`, `body`, `tags`가 기존 값과 PATCH에서 직접 전달한 값을 최종적으로 덮어씁니다.
 - AI 호출 또는 응답 검증에 실패하면 PATCH 전체를 실패 처리하며, 변경사항은 저장하지 않습니다.
 

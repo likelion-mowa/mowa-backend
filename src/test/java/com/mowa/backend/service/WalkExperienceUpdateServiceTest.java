@@ -226,6 +226,120 @@ class WalkExperienceUpdateServiceTest {
     }
 
     @Test
+    void regeneratesOnceWhenOnlyEmotionsActuallyChangeAndOverridesAiContent() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setEmotions(List.of(Emotion.CALM, Emotion.PENSIVE));
+
+        WalkExperienceDetailResponse response = service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient, times(1)).generate(any());
+        assertThat(response.title()).isEqualTo("AI title");
+        assertThat(response.body()).isEqualTo("AI body");
+        assertThat(response.tags()).containsExactlyInAnyOrder("ai-tag", "walk");
+    }
+
+    @Test
+    void doesNotRegenerateForSameEmotionsInSameOrDifferentOrder() {
+        experience = experience(
+                Companion.ALONE,
+                Situation.MORNING,
+                Set.of(Emotion.CALM, Emotion.HAPPY)
+        );
+        when(repository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
+                .thenReturn(Optional.of(experience));
+        UpdateWalkExperienceRequest sameOrder = new UpdateWalkExperienceRequest();
+        sameOrder.setEmotions(List.of(Emotion.CALM, Emotion.HAPPY));
+        UpdateWalkExperienceRequest differentOrder = new UpdateWalkExperienceRequest();
+        differentOrder.setEmotions(List.of(Emotion.HAPPY, Emotion.CALM));
+
+        service.update(userId, demoSessionId, experienceId, sameOrder);
+        service.update(userId, demoSessionId, experienceId, differentOrder);
+
+        verify(aiClient, never()).generate(any());
+    }
+
+    @Test
+    void regeneratesWhenEmotionIsAdded() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setEmotions(List.of(Emotion.HAPPY, Emotion.CALM));
+
+        service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient, times(1)).generate(any());
+    }
+
+    @Test
+    void regeneratesWhenEmotionIsRemoved() {
+        experience = experience(
+                Companion.ALONE,
+                Situation.MORNING,
+                Set.of(Emotion.HAPPY, Emotion.CALM)
+        );
+        when(repository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
+                .thenReturn(Optional.of(experience));
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setEmotions(List.of(Emotion.HAPPY));
+
+        service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient, times(1)).generate(any());
+    }
+
+    @Test
+    void regeneratesWhenEmotionsChangeBetweenEmptyAndNonEmpty() {
+        experience = experience(Companion.ALONE, Situation.MORNING, Set.of());
+        when(repository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
+                .thenReturn(Optional.of(experience));
+        UpdateWalkExperienceRequest add = new UpdateWalkExperienceRequest();
+        add.setEmotions(List.of(Emotion.CALM));
+
+        service.update(userId, demoSessionId, experienceId, add);
+
+        UpdateWalkExperienceRequest clear = new UpdateWalkExperienceRequest();
+        clear.setEmotions(List.of());
+        service.update(userId, demoSessionId, experienceId, clear);
+        verify(aiClient, times(2)).generate(any());
+    }
+
+    @Test
+    void regeneratesOnlyOnceWhenCompanionSituationAndEmotionsAllChange() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setCompanion(Companion.PET);
+        request.setEmotions(List.of(Emotion.CALM));
+        request.setSituation(Situation.EVENING);
+
+        service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient, times(1)).generate(any());
+    }
+
+    @Test
+    void doesNotRegenerateWhenOnlyPhotoUrlChanges() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setPhotoUrl("changed photo");
+
+        WalkExperienceDetailResponse response = service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient, never()).generate(any());
+        assertThat(response.photoUrl()).isEqualTo("changed photo");
+    }
+
+    @Test
+    void emotionAndPhotoChangesUseFinalValuesForAiInput() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setPhotoUrl(null);
+        request.setEmotions(List.of(Emotion.TIRED, Emotion.CALM));
+
+        service.update(userId, demoSessionId, experienceId, request);
+
+        ArgumentCaptor<ExperienceDraftAiGenerationInput> captor =
+                ArgumentCaptor.forClass(ExperienceDraftAiGenerationInput.class);
+        verify(aiClient, times(1)).generate(captor.capture());
+        assertThat(captor.getValue().hasPhoto()).isFalse();
+        assertThat(captor.getValue().emotions()).containsExactly(Emotion.CALM, Emotion.TIRED);
+    }
+
+    @Test
     void regeneratesOnlyOnceWhenCompanionAndSituationBothChange() {
         UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
         request.setCompanion(Companion.PET);
@@ -399,6 +513,14 @@ class WalkExperienceUpdateServiceTest {
     }
 
     private WalkExperience experience(Companion companion, Situation situation) {
+        return experience(companion, situation, Set.of(Emotion.HAPPY));
+    }
+
+    private WalkExperience experience(
+            Companion companion,
+            Situation situation,
+            Set<Emotion> emotions
+    ) {
         User user = mock(User.class);
         ExperienceDraft draft = mock(ExperienceDraft.class);
         WalkCandidate candidate = mock(WalkCandidate.class);
@@ -416,7 +538,7 @@ class WalkExperienceUpdateServiceTest {
                 "body",
                 "photo",
                 companion,
-                Set.of(Emotion.HAPPY),
+                emotions,
                 situation,
                 new LinkedHashSet<>(List.of("tag"))
         );
