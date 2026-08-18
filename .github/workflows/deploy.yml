@@ -1,0 +1,111 @@
+name: Deploy Backend
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mowa-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Verify environment
+        run: |
+          echo "Runner: $(whoami)"
+          echo "Architecture: $(uname -m)"
+          java -version
+
+      - name: Build backend
+        run: |
+          chmod +x gradlew
+          ./gradlew clean bootJar --no-daemon
+
+      - name: Deploy application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEST="/home/rocky/walk-diary-backend/build/libs/backend-0.0.1-SNAPSHOT.jar"
+          TMP="${DEST}.new"
+          BACKUP="${DEST}.bak"
+
+          JAR_PATH="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' -print -quit)"
+
+          if [ -z "$JAR_PATH" ]; then
+            echo "ERROR: bootJar output not found"
+            exit 1
+          fi
+
+          echo "Built JAR: $JAR_PATH"
+          echo "Deploy target: $DEST"
+
+          rm -f "$TMP" "$BACKUP"
+
+          if [ -f "$DEST" ]; then
+            cp -p "$DEST" "$BACKUP"
+            echo "Existing JAR backup created"
+          fi
+
+          cp "$JAR_PATH" "$TMP"
+          mv -f "$TMP" "$DEST"
+
+          echo "New JAR installed"
+
+          if ! sudo -n /usr/bin/systemctl restart mowa-backend.service; then
+            echo "ERROR: service restart failed"
+
+            if [ -f "$BACKUP" ]; then
+              mv -f "$BACKUP" "$DEST"
+              sudo -n /usr/bin/systemctl restart mowa-backend.service
+              echo "Previous JAR restored"
+            fi
+
+            exit 1
+          fi
+
+          echo "Waiting for backend startup..."
+
+          READY=false
+
+          for i in {1..30}; do
+            if sudo -n /usr/bin/systemctl is-active mowa-backend.service >/dev/null 2>&1; then
+              if curl -sS --max-time 2 http://127.0.0.1:8080/ >/dev/null 2>&1; then
+                READY=true
+                break
+              fi
+            fi
+
+            sleep 2
+          done
+
+          if [ "$READY" != "true" ]; then
+            echo "ERROR: backend did not become ready"
+
+            if [ -f "$BACKUP" ]; then
+              cp -p "$BACKUP" "$TMP"
+              mv -f "$TMP" "$DEST"
+              sudo -n /usr/bin/systemctl restart mowa-backend.service
+              echo "Rollback completed"
+            fi
+
+            exit 1
+          fi
+
+          rm -f "$BACKUP"
+
+          echo "Backend deployment completed successfully"
+
+      - name: Verify service
+        run: |
+          sudo -n /usr/bin/systemctl is-active mowa-backend.service
+          echo "MOWA backend is active"
