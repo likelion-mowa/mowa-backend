@@ -40,7 +40,11 @@ class WalkExperienceDeleteServiceTest {
     void setUp() {
         walkExperienceRepository = mock(WalkExperienceRepository.class);
         experienceDraftRepository = mock(ExperienceDraftRepository.class);
-        service = new WalkExperienceService(experienceDraftRepository, walkExperienceRepository);
+        service = new WalkExperienceService(
+                experienceDraftRepository,
+                walkExperienceRepository,
+                mock(ExperienceDraftAiClient.class)
+        );
         userId = UUID.randomUUID();
         demoSessionId = UUID.randomUUID();
         experienceId = UUID.randomUUID();

@@ -2,7 +2,10 @@ package com.mowa.backend.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,6 +31,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 class WalkExperienceUpdateServiceTest {
 
@@ -35,20 +39,30 @@ class WalkExperienceUpdateServiceTest {
     private static final OffsetDateTime ENDED_AT = OffsetDateTime.parse("2026-08-15T11:00:00+09:00");
 
     private WalkExperienceRepository repository;
+    private ExperienceDraftAiClient aiClient;
     private WalkExperienceService service;
     private UUID userId;
     private UUID demoSessionId;
     private UUID experienceId;
+    private UUID draftId;
     private WalkExperience experience;
 
     @BeforeEach
     void setUp() {
         repository = mock(WalkExperienceRepository.class);
-        service = new WalkExperienceService(mock(ExperienceDraftRepository.class), repository);
+        aiClient = mock(ExperienceDraftAiClient.class);
+        service = new WalkExperienceService(mock(ExperienceDraftRepository.class), repository, aiClient);
         userId = UUID.randomUUID();
         demoSessionId = UUID.randomUUID();
         experienceId = UUID.randomUUID();
+        draftId = UUID.randomUUID();
         experience = experience();
+        when(aiClient.generate(any(ExperienceDraftAiGenerationInput.class)))
+                .thenReturn(new ExperienceDraftAiGenerationResult(
+                        "AI title",
+                        "AI body",
+                        List.of("ai-tag", "walk")
+                ));
         when(repository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
                 .thenReturn(Optional.of(experience));
     }
@@ -67,17 +81,18 @@ class WalkExperienceUpdateServiceTest {
         WalkExperienceDetailResponse response = service.update(userId, demoSessionId, experienceId, request);
 
         verify(repository).findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId);
-        assertThat(response.title()).isEqualTo("changed");
-        assertThat(response.body()).isEqualTo("changed body");
+        assertThat(response.title()).isEqualTo("AI title");
+        assertThat(response.body()).isEqualTo("AI body");
         assertThat(response.photoUrl()).isEqualTo("changed photo");
         assertThat(response.companion()).isEqualTo(Companion.PET);
         assertThat(response.emotions()).containsExactly(Emotion.CALM, Emotion.PENSIVE);
         assertThat(response.situation()).isEqualTo(Situation.EVENING);
-        assertThat(response.tags()).containsExactlyInAnyOrder("changed", "#raw");
+        assertThat(response.tags()).containsExactlyInAnyOrder("ai-tag", "walk");
         assertThat(response.startedAt()).isEqualTo(STARTED_AT);
         assertThat(response.endedAt()).isEqualTo(ENDED_AT);
         assertThat(response.durationSeconds()).isEqualTo(3600);
         assertThat(response.locationSummary()).isEqualTo("location");
+        verify(aiClient).generate(any(ExperienceDraftAiGenerationInput.class));
     }
 
     @Test
@@ -96,6 +111,7 @@ class WalkExperienceUpdateServiceTest {
         assertThat(response.emotions()).containsExactly(Emotion.HAPPY);
         assertThat(response.situation()).isEqualTo(Situation.MORNING);
         assertThat(response.tags()).containsExactly("tag");
+        verify(aiClient, never()).generate(any());
     }
 
     @Test
@@ -108,7 +124,7 @@ class WalkExperienceUpdateServiceTest {
 
         WalkExperienceDetailResponse cleared = service.update(userId, demoSessionId, experienceId, request);
 
-        assertThat(cleared.body()).isNull();
+        assertThat(cleared.body()).isEqualTo("AI body");
         assertThat(cleared.photoUrl()).isNull();
         assertThat(cleared.companion()).isNull();
         assertThat(cleared.situation()).isNull();
@@ -197,6 +213,148 @@ class WalkExperienceUpdateServiceTest {
     }
 
     @Test
+    void regeneratesOnceWhenSituationActuallyChanges() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setSituation(Situation.EVENING);
+
+        WalkExperienceDetailResponse response = service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient, times(1)).generate(any());
+        assertThat(response.title()).isEqualTo("AI title");
+        assertThat(response.body()).isEqualTo("AI body");
+        assertThat(response.tags()).containsExactlyInAnyOrder("ai-tag", "walk");
+    }
+
+    @Test
+    void regeneratesOnlyOnceWhenCompanionAndSituationBothChange() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setCompanion(Companion.PET);
+        request.setSituation(Situation.EVENING);
+
+        service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient, times(1)).generate(any());
+    }
+
+    @Test
+    void doesNotRegenerateForExplicitlyUnchangedCompanionAndSituation() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setCompanion(Companion.ALONE);
+        request.setSituation(Situation.MORNING);
+
+        service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient, never()).generate(any());
+    }
+
+    @Test
+    void doesNotRegenerateWhenOnlyTitleBodyAndTagsChange() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setTitle("manual title");
+        request.setBody("manual body");
+        request.setTags(List.of("manual"));
+
+        WalkExperienceDetailResponse response = service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient, never()).generate(any());
+        assertThat(response.title()).isEqualTo("manual title");
+        assertThat(response.body()).isEqualTo("manual body");
+        assertThat(response.tags()).containsExactly("manual");
+    }
+
+    @Test
+    void explicitNullCompanionIsAnActualChangeAndRegenerates() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setCompanion(null);
+
+        WalkExperienceDetailResponse response = service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient).generate(any());
+        assertThat(response.companion()).isNull();
+    }
+
+    @Test
+    void nullToNonNullSituationIsAnActualChangeAndRegenerates() {
+        experience = experience(Companion.ALONE, null);
+        when(repository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
+                .thenReturn(Optional.of(experience));
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setSituation(Situation.AFTERNOON);
+
+        service.update(userId, demoSessionId, experienceId, request);
+
+        verify(aiClient).generate(any());
+    }
+
+    @Test
+    void aiInputUsesFinalPatchedExperienceSnapshot() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setPhotoUrl(null);
+        request.setCompanion(Companion.PET);
+        request.setEmotions(List.of(Emotion.TIRED, Emotion.CALM));
+        request.setSituation(Situation.EVENING);
+
+        service.update(userId, demoSessionId, experienceId, request);
+
+        ArgumentCaptor<ExperienceDraftAiGenerationInput> captor =
+                ArgumentCaptor.forClass(ExperienceDraftAiGenerationInput.class);
+        verify(aiClient).generate(captor.capture());
+        ExperienceDraftAiGenerationInput input = captor.getValue();
+        assertThat(input.draftId()).isEqualTo(draftId);
+        assertThat(input.hasPhoto()).isFalse();
+        assertThat(input.companion()).isEqualTo(Companion.PET);
+        assertThat(input.emotions()).containsExactly(Emotion.CALM, Emotion.TIRED);
+        assertThat(input.situation()).isEqualTo(Situation.EVENING);
+        assertThat(input.detectedStartAt()).isEqualTo(STARTED_AT);
+        assertThat(input.detectedEndAt()).isEqualTo(ENDED_AT);
+        assertThat(input.durationSeconds()).isEqualTo(3600);
+        assertThat(input.locationSummary()).isEqualTo("location");
+    }
+
+    @Test
+    void aiResultOverridesManualTitleBodyAndTagsWhenTriggerChanges() {
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setCompanion(Companion.PET);
+        request.setTitle("manual title");
+        request.setBody("manual body");
+        request.setTags(List.of("manual"));
+
+        WalkExperienceDetailResponse response = service.update(userId, demoSessionId, experienceId, request);
+
+        assertThat(response.title()).isEqualTo("AI title");
+        assertThat(response.body()).isEqualTo("AI body");
+        assertThat(response.tags()).containsExactlyInAnyOrder("ai-tag", "walk");
+    }
+
+    @Test
+    void translatesAiFailureToInternalServerError() {
+        when(aiClient.generate(any())).thenThrow(new IllegalStateException("provider failed"));
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setCompanion(Companion.PET);
+
+        assertThatThrownBy(() -> service.update(userId, demoSessionId, experienceId, request))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR));
+    }
+
+    @Test
+    void rejectsInvalidAiTagsAsAiGenerationFailure() {
+        when(aiClient.generate(any())).thenReturn(new ExperienceDraftAiGenerationResult(
+                "AI title",
+                "AI body",
+                List.of("duplicate", "duplicate")
+        ));
+        UpdateWalkExperienceRequest request = new UpdateWalkExperienceRequest();
+        request.setSituation(Situation.EVENING);
+
+        assertThatThrownBy(() -> service.update(userId, demoSessionId, experienceId, request))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR));
+    }
+
+    @Test
     void missingOtherOwnedOtherSessionAndDeletedExperiencesAreAllNotFound() {
         when(repository.findActiveByIdAndUserIdAndDemoSessionId(experienceId, userId, demoSessionId))
                 .thenReturn(Optional.empty());
@@ -237,9 +395,14 @@ class WalkExperienceUpdateServiceTest {
     }
 
     private WalkExperience experience() {
+        return experience(Companion.ALONE, Situation.MORNING);
+    }
+
+    private WalkExperience experience(Companion companion, Situation situation) {
         User user = mock(User.class);
         ExperienceDraft draft = mock(ExperienceDraft.class);
         WalkCandidate candidate = mock(WalkCandidate.class);
+        when(draft.getId()).thenReturn(draftId);
         when(draft.getDemoSessionId()).thenReturn(demoSessionId);
         when(candidate.getDetectedStartAt()).thenReturn(STARTED_AT);
         when(candidate.getDetectedEndAt()).thenReturn(ENDED_AT);
@@ -252,9 +415,9 @@ class WalkExperienceUpdateServiceTest {
                 "original",
                 "body",
                 "photo",
-                Companion.ALONE,
+                companion,
                 Set.of(Emotion.HAPPY),
-                Situation.MORNING,
+                situation,
                 new LinkedHashSet<>(List.of("tag"))
         );
     }

@@ -41,7 +41,11 @@ class WalkExperienceServiceTest {
     void setUp() {
         experienceDraftRepository = mock(ExperienceDraftRepository.class);
         walkExperienceRepository = mock(WalkExperienceRepository.class);
-        walkExperienceService = new WalkExperienceService(experienceDraftRepository, walkExperienceRepository);
+        walkExperienceService = new WalkExperienceService(
+                experienceDraftRepository,
+                walkExperienceRepository,
+                mock(ExperienceDraftAiClient.class)
+        );
         userId = UUID.randomUUID();
         demoSessionId = UUID.randomUUID();
     }
