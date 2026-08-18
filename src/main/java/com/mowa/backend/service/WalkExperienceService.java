@@ -131,6 +131,7 @@ public class WalkExperienceService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
 
         var originalCompanion = experience.getCompanion();
+        Set<Emotion> originalEmotions = Set.copyOf(experience.getEmotions());
         var originalSituation = experience.getSituation();
 
         if (request.hasTitle()) {
@@ -157,6 +158,7 @@ public class WalkExperienceService {
         }
 
         boolean shouldRegenerate = !Objects.equals(originalCompanion, experience.getCompanion())
+                || !originalEmotions.equals(experience.getEmotions())
                 || !Objects.equals(originalSituation, experience.getSituation());
         if (shouldRegenerate) {
             regenerateAiContent(experience);
