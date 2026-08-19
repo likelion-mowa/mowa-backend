@@ -350,7 +350,6 @@ Base URL:
 
 총 **14개의 REST API**를 제공합니다.
 
-> 세부 Request / Response, Validation, 상태 코드 및 예외 정책은 `docs/api-spec.md`를 기준으로 합니다.
 
 ---
 
@@ -615,16 +614,12 @@ chore: 배포 환경 설정
 Backend 구현 시 다음 문서를 기준으로 합니다.
 
 ```text
-docs/api-spec.md
-docs/data-table.md
 docs/erd.md
 docs/feature-spec.md
 ```
 
 | Document | 기준 |
 | --- | --- |
-| `api-spec.md` | Endpoint, Request/Response, Validation, 상태 코드 |
-| `data-table.md` | DB 컬럼, 제약조건, Enum, 인덱스 |
 | `erd.md` | Entity 관계, FK, Cardinality |
 | `feature-spec.md` | 기능 목적, 사용자 흐름, MVP 범위 |
 
@@ -643,4 +638,3 @@ docs/feature-spec.md
 - 사진 파일 자체를 DB에 저장하지 않고 `photoUrl`만 저장합니다.
 - 감정과 태그는 별도 연결 테이블을 통해 관리합니다.
 - API Key, DB Password, JWT Secret 등 민감 정보는 Git에 포함하지 않습니다.
-- 세부 개발 규칙은 `AGENTS.md`와 `.aiassistant/rules/mowa-backend.md`를 따릅니다.
