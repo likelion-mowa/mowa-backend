@@ -489,8 +489,8 @@ PENSIVE
 ### 1. Clone
 
 ```bash
-git clone https://github.com/likelion-walk-diary/walk-diary-backend.git
-cd walk-diary-backend
+git clone https://github.com/likelion-mowa/mowa-backend.git
+cd mowa-backend
 ```
 
 ### 2. Environment Variables
