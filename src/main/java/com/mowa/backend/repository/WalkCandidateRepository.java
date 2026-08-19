@@ -7,5 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface WalkCandidateRepository extends JpaRepository<WalkCandidate, UUID> {
 
+    boolean existsByUser_IdAndDemoSessionId(UUID userId, UUID demoSessionId);
+
     Optional<WalkCandidate> findByIdAndUser_IdAndDemoSessionId(UUID id, UUID userId, UUID demoSessionId);
 }

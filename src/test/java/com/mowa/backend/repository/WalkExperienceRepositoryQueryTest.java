@@ -88,4 +88,22 @@ class WalkExperienceRepositoryQueryTest {
             throw new AssertionError(exception);
         }
     }
+
+    @Test
+    void templateQueryFetchesDraftCandidateCollectionsAndOnlyActiveTemplateExperiences() {
+        String query = query("findAllActiveTemplatesByUserIdAndDemoSessionId", UUID.class, UUID.class);
+
+        assertThat(query).contains(
+                "select distinct e",
+                "join fetch e.draft d",
+                "join fetch d.candidate",
+                "left join fetch d.emotions",
+                "left join fetch e.emotions",
+                "left join fetch e.tags",
+                "e.user.id = :userId",
+                "e.demoSessionId = :demoSessionId",
+                "e.deletedAt is null",
+                "order by e.startedAt asc"
+        );
+    }
 }

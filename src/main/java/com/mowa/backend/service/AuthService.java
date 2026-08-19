@@ -18,18 +18,21 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final DemoSessionDataService demoSessionDataService;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtTokenProvider jwtTokenProvider
+            JwtTokenProvider jwtTokenProvider,
+            DemoSessionDataService demoSessionDataService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.demoSessionDataService = demoSessionDataService;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByLoginId(request.loginId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
@@ -38,6 +41,11 @@ public class AuthService {
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
-        return new LoginResponse(jwtTokenProvider.createAccessToken(user.getId(), UUID.randomUUID()));
+        UUID demoSessionId = UUID.randomUUID();
+        if (demoSessionDataService.supports(user)) {
+            demoSessionDataService.initializeDefaultDataIfDemoUser(user, demoSessionId);
+        }
+
+        return new LoginResponse(jwtTokenProvider.createAccessToken(user.getId(), demoSessionId));
     }
 }

@@ -125,6 +125,12 @@ public class ExperienceDraft extends BaseEntity {
         this.aiGenerationStatus = AiGenerationStatus.FAILED;
     }
 
+    public void copyAiGeneration(String aiTitle, String aiBody, AiGenerationStatus aiGenerationStatus) {
+        this.aiTitle = aiTitle;
+        this.aiBody = aiBody;
+        this.aiGenerationStatus = aiGenerationStatus;
+    }
+
     public UUID getId() {
         return id;
     }
