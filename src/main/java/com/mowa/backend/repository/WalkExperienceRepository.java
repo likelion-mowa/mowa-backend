@@ -13,6 +13,26 @@ public interface WalkExperienceRepository extends JpaRepository<WalkExperience, 
 
     boolean existsByDraft_Id(UUID draftId);
 
+    boolean existsByUser_IdAndDemoSessionId(UUID userId, UUID demoSessionId);
+
+    @Query("""
+            select distinct e
+            from WalkExperience e
+            join fetch e.draft d
+            join fetch d.candidate
+            left join fetch d.emotions
+            left join fetch e.emotions
+            left join fetch e.tags
+            where e.user.id = :userId
+              and e.demoSessionId = :demoSessionId
+              and e.deletedAt is null
+            order by e.startedAt asc
+            """)
+    List<WalkExperience> findAllActiveTemplatesByUserIdAndDemoSessionId(
+            @Param("userId") UUID userId,
+            @Param("demoSessionId") UUID demoSessionId
+    );
+
     @Query("""
             select distinct e
             from WalkExperience e
