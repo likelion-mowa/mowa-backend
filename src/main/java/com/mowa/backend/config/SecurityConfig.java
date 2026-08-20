@@ -28,8 +28,15 @@ public class SecurityConfig {
      * 이 목록을 덮어쓴다. 기본값은 로컬 개발과 Vercel 배포를 모두 포함한다.
      *
      * 8081은 Expo Web 기본 포트, 8082는 8081이 이미 점유됐을 때 Expo가 쓰는 대체 포트다.
-     * Vercel은 프로덕션 도메인 외에 PR마다 walk-diary-frontend-<해시>.vercel.app 형태의
+     * Vercel은 프로덕션 도메인 외에 PR마다 <프로젝트명>-<해시>.vercel.app 형태의
      * 프리뷰 도메인을 새로 만들기 때문에 고정 문자열로는 감당할 수 없어 패턴을 쓴다.
+     *
+     * 프론트 리포 하나에 Vercel 프로젝트가 둘 붙어 있어 도메인 계열도 둘이다.
+     * 프리뷰 URL 접두사는 깃 리포명이 아니라 Vercel 프로젝트명에서 온다.
+     *   - walk-diary-frontend (구) -> walk-diary-frontend[-*].vercel.app
+     *   - likelion-mowa      (신) -> likelion-mowa[-*].vercel.app
+     * likelion-mowa 계열이 빠져 있어 그 링크로 접속하면 로그인부터 403
+     * "Invalid CORS request"로 막혔다. 프로젝트를 하나로 정리하면 해당 줄도 지울 것.
      */
     public SecurityConfig(
             @Value("${cors.allowed-origins:"
@@ -37,7 +44,9 @@ public class SecurityConfig {
                     + "http://localhost:8082,"
                     + "http://localhost:19006,"
                     + "https://walk-diary-frontend.vercel.app,"
-                    + "https://walk-diary-frontend-*.vercel.app}")
+                    + "https://walk-diary-frontend-*.vercel.app,"
+                    + "https://likelion-mowa.vercel.app,"
+                    + "https://likelion-mowa-*.vercel.app}")
             List<String> corsAllowedOrigins
     ) {
         this.corsAllowedOrigins = corsAllowedOrigins;
